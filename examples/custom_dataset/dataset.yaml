@@ -1,0 +1,22 @@
+schema_version: "2.0"
+dataset_name: vulnmirage-audit-demo
+version: "0.1.0"
+description: >
+  Two-case reference dataset for the VulnMirage-Audit schema.  It demonstrates
+  (a) a case with an adjudicated CVSS v3.1 severity that may participate in
+  severity manipulation, and (b) a case without severity that may only
+  participate in detection / false-negative experiments.
+license: MIT
+homepage: https://example.invalid/vulnmirage-audit
+languages: [python]
+defaults:
+  language: python
+  validation_level: trace_grounded
+  license: MIT
+attack_goals:
+  - false_negative
+  - false_positive
+  - severity_inflation
+  - severity_downgrade
+  - evidence_corruption
+  - verification_diversion

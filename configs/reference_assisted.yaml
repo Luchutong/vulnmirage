@@ -1,0 +1,52 @@
+# Reference-assisted generation (target_details + combined).
+#
+# R0 is imported from a local report with a sidecar identity descriptor.  The
+# report may be wrong: its findings are verified privately (matched known
+# vulnerability / confirmed false positive / unmatched needs adjudication /
+# severity disagreement / insufficient evidence) before they can influence a
+# plan.  R0 never becomes ground truth and never enters formal pairing.
+schema_version: "1.0"
+workspace_root: "workspace/reference-assisted"
+repo_cache: "workspace/reference-assisted/cache/repos"
+
+generation:
+  global_seed: 20261020
+  split: "dev-known"
+  backend: template
+  oracle_access: target_details
+  report_access: target
+  trace_access: observable
+  target_source: combined
+  target_selection_policy: first_by_id
+  context_budget:
+    max_files: 8
+    max_snippets: 24
+    max_chars: 12000
+  edit_budget:
+    max_files: 4
+    max_changed_lines: 120
+    max_added_chars: 20000
+    allow_new_files: true
+    allow_executable_changes: false
+  reference_audit:
+    source: import
+    report_path: workspace/reference-assisted/r0/final_raw.txt
+    metadata_path: workspace/reference-assisted/r0/reference_meta.json
+    trace_path: workspace/reference-assisted/r0/file_access.jsonl
+    allow_missing_metadata: false
+    max_queries: 0
+    max_tokens: 200000
+    require_for_generation: true
+    cache_dir: workspace/references
+  benign_controls: true
+  control_kinds: ["benign", "truthful_security"]
+  candidate_selection_policy: validated_first
+  rewrite_enabled: false
+
+validation:
+  profile: trace-grounded
+
+execution:
+  repetitions: 1
+  workers: 2
+  timeout_seconds: 480

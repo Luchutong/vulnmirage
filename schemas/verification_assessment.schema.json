@@ -1,0 +1,263 @@
+{
+  "$defs": {
+    "PredicateResult": {
+      "additionalProperties": false,
+      "description": "Outcome of evaluating one predicate against one trajectory.",
+      "properties": {
+        "decisive": {
+          "default": false,
+          "title": "Decisive",
+          "type": "boolean"
+        },
+        "failure_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Reason"
+        },
+        "matched_event_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Matched Event Ids",
+          "type": "array"
+        },
+        "matched_location_count": {
+          "default": 0,
+          "title": "Matched Location Count",
+          "type": "integer"
+        },
+        "predicate_id": {
+          "title": "Predicate Id",
+          "type": "string"
+        },
+        "predicate_type": {
+          "$ref": "#/$defs/PredicateType"
+        },
+        "satisfied": {
+          "title": "Satisfied",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "predicate_id",
+        "predicate_type",
+        "satisfied"
+      ],
+      "title": "PredicateResult",
+      "type": "object"
+    },
+    "PredicateType": {
+      "enum": [
+        "read_location",
+        "search_symbol",
+        "trace_call_edge",
+        "permission_check",
+        "sanitizer_effect",
+        "critical_operation",
+        "execute_poc",
+        "run_test",
+        "run_validator",
+        "false_bridge_check",
+        "safe_target_check"
+      ],
+      "title": "PredicateType",
+      "type": "string"
+    },
+    "Resolution": {
+      "enum": [
+        "correct",
+        "incorrect",
+        "omitted",
+        "ambiguous"
+      ],
+      "title": "Resolution",
+      "type": "string"
+    },
+    "VerificationState": {
+      "enum": [
+        "unseen",
+        "visibility_unknown",
+        "exposed",
+        "check_attempted",
+        "decisive_evidence_accessed",
+        "resolved"
+      ],
+      "title": "VerificationState",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "check_event_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Check Event Ids",
+      "type": "array"
+    },
+    "claim_id": {
+      "title": "Claim Id",
+      "type": "string"
+    },
+    "claim_resolution_basis": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Claim Resolution Basis"
+    },
+    "counterevidence_accessed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Counterevidence Accessed"
+    },
+    "decisive_event_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Decisive Event Ids",
+      "type": "array"
+    },
+    "decisive_verification": {
+      "default": false,
+      "title": "Decisive Verification",
+      "type": "boolean"
+    },
+    "depth_score": {
+      "maximum": 4,
+      "minimum": 0,
+      "title": "Depth Score",
+      "type": "integer"
+    },
+    "exposure_event_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exposure Event Ids",
+      "type": "array"
+    },
+    "expression_satisfied": {
+      "default": false,
+      "title": "Expression Satisfied",
+      "type": "boolean"
+    },
+    "failed_predicate_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Failed Predicate Ids",
+      "type": "array"
+    },
+    "file_access_observed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "File Access Observed"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "payload_visible_in_tool_result": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Payload Visible In Tool Result"
+    },
+    "predicate_results": {
+      "items": {
+        "$ref": "#/$defs/PredicateResult"
+      },
+      "title": "Predicate Results",
+      "type": "array"
+    },
+    "report_finding_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Report Finding Ids",
+      "type": "array"
+    },
+    "resolution": {
+      "$ref": "#/$defs/Resolution"
+    },
+    "rule_version": {
+      "title": "Rule Version",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/VerificationState"
+    },
+    "verification_attempted": {
+      "default": false,
+      "title": "Verification Attempted",
+      "type": "boolean"
+    },
+    "verification_succeeded": {
+      "default": false,
+      "title": "Verification Succeeded",
+      "type": "boolean"
+    },
+    "verification_supported": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Verification Supported"
+    }
+  },
+  "required": [
+    "run_id",
+    "claim_id",
+    "state",
+    "depth_score",
+    "resolution",
+    "rule_version"
+  ],
+  "title": "VerificationAssessment",
+  "type": "object"
+}

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+pytest-of-*/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime workspace and generated benchmark data
+workspace/
+runs/
+reports/
+quarantine/
+releases/
+
+# Local environment
+.env
+.venv/
+venv/
+*.log
+
+# Local Linux validation env (WSL)
+.venv-linux/

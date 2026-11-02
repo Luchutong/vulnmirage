@@ -1,0 +1,359 @@
+{
+  "$defs": {
+    "AppliedOperation": {
+      "additionalProperties": false,
+      "properties": {
+        "added_chars": {
+          "minimum": 0,
+          "title": "Added Chars",
+          "type": "integer"
+        },
+        "added_lines": {
+          "minimum": 0,
+          "title": "Added Lines",
+          "type": "integer"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "fragment_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fragment Sha256"
+        },
+        "op": {
+          "$ref": "#/$defs/EditOperationType"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        },
+        "write_mode": {
+          "enum": [
+            "create",
+            "replace"
+          ],
+          "title": "Write Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id",
+        "op",
+        "path",
+        "write_mode",
+        "start_line",
+        "end_line",
+        "added_lines",
+        "added_chars"
+      ],
+      "title": "AppliedOperation",
+      "type": "object"
+    },
+    "EditBudget": {
+      "additionalProperties": false,
+      "description": "Hard edit budget checked *before* any file is written.",
+      "properties": {
+        "allow_executable_changes": {
+          "default": false,
+          "title": "Allow Executable Changes",
+          "type": "boolean"
+        },
+        "allow_new_files": {
+          "default": true,
+          "title": "Allow New Files",
+          "type": "boolean"
+        },
+        "max_added_chars": {
+          "default": 20000,
+          "minimum": 1,
+          "title": "Max Added Chars",
+          "type": "integer"
+        },
+        "max_changed_lines": {
+          "default": 120,
+          "minimum": 1,
+          "title": "Max Changed Lines",
+          "type": "integer"
+        },
+        "max_files": {
+          "default": 4,
+          "minimum": 1,
+          "title": "Max Files",
+          "type": "integer"
+        }
+      },
+      "title": "EditBudget",
+      "type": "object"
+    },
+    "EditOperationType": {
+      "enum": [
+        "create_file",
+        "append_block",
+        "insert_comment",
+        "replace_block",
+        "replace_file"
+      ],
+      "title": "EditOperationType",
+      "type": "string"
+    },
+    "FileEditResult": {
+      "additionalProperties": false,
+      "properties": {
+        "added_chars": {
+          "default": 0,
+          "title": "Added Chars",
+          "type": "integer"
+        },
+        "changed_lines": {
+          "default": 0,
+          "title": "Changed Lines",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "create",
+            "replace"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "new_sha256": {
+          "title": "New Sha256",
+          "type": "string"
+        },
+        "original_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Sha256"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "mode",
+        "new_sha256"
+      ],
+      "title": "FileEditResult",
+      "type": "object"
+    },
+    "PatchOperation": {
+      "additionalProperties": false,
+      "description": "One structured edit operation.",
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor"
+        },
+        "carrier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carrier"
+        },
+        "claim_handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Handle"
+        },
+        "expected_old_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Old Sha256"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "title": "Metadata",
+          "type": "object"
+        },
+        "new_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "New Text"
+        },
+        "op": {
+          "$ref": "#/$defs/EditOperationType"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "target_handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Handle"
+        }
+      },
+      "required": [
+        "operation_id",
+        "op",
+        "path"
+      ],
+      "title": "PatchOperation",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Deterministic result of applying one operation list.",
+  "properties": {
+    "added_chars_total": {
+      "default": 0,
+      "title": "Added Chars Total",
+      "type": "integer"
+    },
+    "application_id": {
+      "title": "Application Id",
+      "type": "string"
+    },
+    "applied": {
+      "items": {
+        "$ref": "#/$defs/AppliedOperation"
+      },
+      "title": "Applied",
+      "type": "array"
+    },
+    "budget": {
+      "$ref": "#/$defs/EditBudget"
+    },
+    "changed_lines_total": {
+      "default": 0,
+      "title": "Changed Lines Total",
+      "type": "integer"
+    },
+    "diff": {
+      "default": "",
+      "title": "Diff",
+      "type": "string"
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/FileEditResult"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "operations": {
+      "items": {
+        "$ref": "#/$defs/PatchOperation"
+      },
+      "title": "Operations",
+      "type": "array"
+    },
+    "patch_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Patch Sha256",
+      "type": "string"
+    },
+    "rejection_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rejection Reason"
+    },
+    "status": {
+      "default": "accepted",
+      "enum": [
+        "accepted",
+        "rejected"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "application_id",
+    "patch_sha256"
+  ],
+  "title": "EditApplication",
+  "type": "object"
+}

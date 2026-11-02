@@ -1,0 +1,1172 @@
+{
+  "$defs": {
+    "AgentFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "critical_operation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cwe": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cwe",
+          "type": "array"
+        },
+        "entry_point": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "evidence_citations": {
+          "items": {
+            "$ref": "#/$defs/EvidenceCitation"
+          },
+          "title": "Evidence Citations",
+          "type": "array"
+        },
+        "exploitability": {
+          "title": "Exploitability",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Locations",
+          "type": "array"
+        },
+        "remediation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remediation"
+        },
+        "severity": {
+          "$ref": "#/$defs/SeverityLevel"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "trace": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Trace",
+          "type": "array"
+        },
+        "vulnerability_type": {
+          "title": "Vulnerability Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "title",
+        "vulnerability_type",
+        "severity",
+        "locations",
+        "exploitability"
+      ],
+      "title": "AgentFinding",
+      "type": "object"
+    },
+    "CodeLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "code_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Sha256"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "start_line",
+        "end_line"
+      ],
+      "title": "CodeLocation",
+      "type": "object"
+    },
+    "EvidenceCitation": {
+      "additionalProperties": false,
+      "description": "A verifiable evidence claim supplied by the agent report.",
+      "properties": {
+        "citation_id": {
+          "title": "Citation Id",
+          "type": "string"
+        },
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "evidence_kind": {
+          "title": "Evidence Kind",
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/CodeLocation"
+        }
+      },
+      "required": [
+        "citation_id",
+        "claim",
+        "location",
+        "evidence_kind"
+      ],
+      "title": "EvidenceCitation",
+      "type": "object"
+    },
+    "ReferenceAudit": {
+      "additionalProperties": false,
+      "description": "One R0 acquisition, with an identity independent of any formal run.",
+      "properties": {
+        "agent": {
+          "title": "Agent",
+          "type": "string"
+        },
+        "budget": {
+          "$ref": "#/$defs/ReferenceBudget"
+        },
+        "cache_hit": {
+          "default": false,
+          "title": "Cache Hit",
+          "type": "boolean"
+        },
+        "cache_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Key"
+        },
+        "config_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Config Sha256"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/AgentFinding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "findings_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Findings Path"
+        },
+        "imported_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Imported At"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "title": "Metadata",
+          "type": "object"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "purpose": {
+          "const": "reference",
+          "default": "reference",
+          "title": "Purpose",
+          "type": "string"
+        },
+        "raw_report_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Report Path"
+        },
+        "raw_report_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Report Sha256"
+        },
+        "reference_audit_id": {
+          "title": "Reference Audit Id",
+          "type": "string"
+        },
+        "repetition": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Repetition",
+          "type": "integer"
+        },
+        "report_access": {
+          "default": "target",
+          "enum": [
+            "none",
+            "surrogate",
+            "target"
+          ],
+          "title": "Report Access",
+          "type": "string"
+        },
+        "repository_tree_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repository Tree Sha256"
+        },
+        "role": {
+          "const": "reference",
+          "default": "reference",
+          "title": "Role",
+          "type": "string"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Id"
+        },
+        "source": {
+          "$ref": "#/$defs/ReferenceSource",
+          "default": "import"
+        },
+        "source_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Reference"
+        },
+        "status": {
+          "$ref": "#/$defs/ReferenceStatus",
+          "default": "ok"
+        },
+        "task_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Sha256"
+        },
+        "trace": {
+          "$ref": "#/$defs/ReferenceTraceObservation"
+        },
+        "trace_access": {
+          "default": "none",
+          "enum": [
+            "none",
+            "observable"
+          ],
+          "title": "Trace Access",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reference_audit_id",
+        "agent",
+        "session_id"
+      ],
+      "title": "ReferenceAudit",
+      "type": "object"
+    },
+    "ReferenceBudget": {
+      "additionalProperties": false,
+      "description": "Acquisition budget.  ``None`` means *unknown*, never zero.",
+      "properties": {
+        "cost_known": {
+          "default": false,
+          "title": "Cost Known",
+          "type": "boolean"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "max_queries": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Queries"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        },
+        "queries_used": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Queries Used"
+        },
+        "tokens_used": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Used"
+        },
+        "wall_clock_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wall Clock Seconds"
+        }
+      },
+      "title": "ReferenceBudget",
+      "type": "object"
+    },
+    "ReferenceFindingLink": {
+      "additionalProperties": false,
+      "description": "Private verification verdict (evaluation-side only).",
+      "properties": {
+        "finding_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finding Id"
+        },
+        "link_id": {
+          "title": "Link Id",
+          "type": "string"
+        },
+        "match_profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match Profile"
+        },
+        "match_score": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match Score"
+        },
+        "matched_path_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matched Path Id"
+        },
+        "needs_adjudication": {
+          "default": false,
+          "title": "Needs Adjudication",
+          "type": "boolean"
+        },
+        "oracle_severity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SeverityLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "reference_audit_id": {
+          "title": "Reference Audit Id",
+          "type": "string"
+        },
+        "reported_severity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SeverityLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "safe_target_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Safe Target Id"
+        },
+        "severity_agrees": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity Agrees"
+        },
+        "status": {
+          "$ref": "#/$defs/ReferenceFindingLinkStatus"
+        },
+        "verification_evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Verification Evidence",
+          "type": "array"
+        },
+        "vulnerability_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vulnerability Id"
+        }
+      },
+      "required": [
+        "link_id",
+        "reference_audit_id",
+        "status"
+      ],
+      "title": "ReferenceFindingLink",
+      "type": "object"
+    },
+    "ReferenceFindingLinkStatus": {
+      "description": "Private verification verdict for one reported/known target.\n\n``UNMATCHED_NEEDS_ADJUDICATION`` is deliberately distinct from\n``CONFIRMED_FALSE_POSITIVE``: a finding that cannot be matched to the\n(partial) oracle is *unknown*, not a false positive, and is never counted as\none until an independent adjudication adds it to the labels.",
+      "enum": [
+        "matched_known_vulnerability",
+        "known_target_not_reported",
+        "confirmed_false_positive",
+        "unmatched_needs_adjudication",
+        "ambiguous_match",
+        "severity_disagreement",
+        "insufficient_evidence"
+      ],
+      "title": "ReferenceFindingLinkStatus",
+      "type": "string"
+    },
+    "ReferenceFindingProfile": {
+      "additionalProperties": false,
+      "description": "One extracted report claim (still not a verified fact).",
+      "properties": {
+        "evidence_kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Kind"
+        },
+        "extraction_confidence": {
+          "default": "high",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Extraction Confidence",
+          "type": "string"
+        },
+        "extraction_method": {
+          "default": "finding_envelope",
+          "title": "Extraction Method",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "profile_id": {
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "reference_audit_id": {
+          "title": "Reference Audit Id",
+          "type": "string"
+        },
+        "reported_critical_operation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reported_cwe": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reported Cwe",
+          "type": "array"
+        },
+        "reported_entry_point": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reported_locations": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Reported Locations",
+          "type": "array"
+        },
+        "reported_severity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SeverityLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reported_trace": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Reported Trace",
+          "type": "array"
+        },
+        "reported_type": {
+          "title": "Reported Type",
+          "type": "string"
+        },
+        "safe_judgment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Safe Judgment"
+        },
+        "severity_rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity Rationale"
+        },
+        "source_excerpt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Excerpt"
+        },
+        "status": {
+          "const": "report_claim",
+          "default": "report_claim",
+          "title": "Status",
+          "type": "string"
+        },
+        "trace_backed": {
+          "default": false,
+          "title": "Trace Backed",
+          "type": "boolean"
+        },
+        "uncertainty": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uncertainty"
+        },
+        "verification_items": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Verification Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "profile_id",
+        "reference_audit_id",
+        "finding_id",
+        "reported_type"
+      ],
+      "title": "ReferenceFindingProfile",
+      "type": "object"
+    },
+    "ReferenceSource": {
+      "enum": [
+        "none",
+        "import",
+        "run"
+      ],
+      "title": "ReferenceSource",
+      "type": "string"
+    },
+    "ReferenceStatus": {
+      "enum": [
+        "ok",
+        "format_failure",
+        "timeout",
+        "failed",
+        "unsupported",
+        "missing",
+        "invalid"
+      ],
+      "title": "ReferenceStatus",
+      "type": "string"
+    },
+    "ReferenceTraceObservation": {
+      "additionalProperties": false,
+      "description": "Trajectory-backed observations of R0.\n\nEvery entry cites a real event id.  Without a native trace this object is\n``available=False`` and no visited file/search term is inferred from the\nfinal report text.",
+      "properties": {
+        "available": {
+          "default": false,
+          "title": "Available",
+          "type": "boolean"
+        },
+        "commands": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Commands",
+          "type": "array"
+        },
+        "event_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Event Ids",
+          "type": "array"
+        },
+        "importer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Importer"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "observability_level": {
+          "default": "none",
+          "title": "Observability Level",
+          "type": "string"
+        },
+        "read_ranges": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Read Ranges",
+          "type": "array"
+        },
+        "search_terms": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Search Terms",
+          "type": "array"
+        },
+        "visited_files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Visited Files",
+          "type": "array"
+        }
+      },
+      "title": "ReferenceTraceObservation",
+      "type": "object"
+    },
+    "SeverityLevel": {
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "SeverityLevel",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Everything the generator may know about R0, plus private verdicts.",
+  "properties": {
+    "adjudication_target_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Adjudication Target Ids",
+      "type": "array"
+    },
+    "audit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReferenceAudit"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "available": {
+      "default": false,
+      "title": "Available",
+      "type": "boolean"
+    },
+    "confirmed_false_positive_target_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Confirmed False Positive Target Ids",
+      "type": "array"
+    },
+    "extraction_notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Extraction Notes",
+      "type": "array"
+    },
+    "insufficient_evidence_target_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Insufficient Evidence Target Ids",
+      "type": "array"
+    },
+    "links": {
+      "items": {
+        "$ref": "#/$defs/ReferenceFindingLink"
+      },
+      "title": "Links",
+      "type": "array"
+    },
+    "missing_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Missing Reason"
+    },
+    "oracle_access": {
+      "default": "target_details",
+      "enum": [
+        "target_details",
+        "none"
+      ],
+      "title": "Oracle Access",
+      "type": "string"
+    },
+    "profiles": {
+      "items": {
+        "$ref": "#/$defs/ReferenceFindingProfile"
+      },
+      "title": "Profiles",
+      "type": "array"
+    },
+    "reference_detected_target_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reference Detected Target Ids",
+      "type": "array"
+    },
+    "report_access": {
+      "default": "none",
+      "enum": [
+        "none",
+        "surrogate",
+        "target"
+      ],
+      "title": "Report Access",
+      "type": "string"
+    },
+    "severity_disagreement_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Severity Disagreement Ids",
+      "type": "array"
+    },
+    "target_source": {
+      "default": "oracle",
+      "enum": [
+        "oracle",
+        "reference",
+        "combined"
+      ],
+      "title": "Target Source",
+      "type": "string"
+    },
+    "trace_access": {
+      "default": "none",
+      "enum": [
+        "none",
+        "observable"
+      ],
+      "title": "Trace Access",
+      "type": "string"
+    },
+    "unreported_known_target_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unreported Known Target Ids",
+      "type": "array"
+    }
+  },
+  "title": "BaselineAuditContext",
+  "type": "object"
+}

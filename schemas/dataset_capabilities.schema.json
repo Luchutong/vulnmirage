@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What a dataset can support, derived from its records.",
+  "properties": {
+    "dataset_name": {
+      "title": "Dataset Name",
+      "type": "string"
+    },
+    "has_adjudicated_severity": {
+      "default": false,
+      "title": "Has Adjudicated Severity",
+      "type": "boolean"
+    },
+    "has_attack_plans": {
+      "default": false,
+      "title": "Has Attack Plans",
+      "type": "boolean"
+    },
+    "has_fix_commits": {
+      "default": false,
+      "title": "Has Fix Commits",
+      "type": "boolean"
+    },
+    "has_poc_commands": {
+      "default": false,
+      "title": "Has Poc Commands",
+      "type": "boolean"
+    },
+    "has_regression_commands": {
+      "default": false,
+      "title": "Has Regression Commands",
+      "type": "boolean"
+    },
+    "has_safe_targets": {
+      "default": false,
+      "title": "Has Safe Targets",
+      "type": "boolean"
+    },
+    "has_severity": {
+      "default": false,
+      "title": "Has Severity",
+      "type": "boolean"
+    },
+    "has_split_groups": {
+      "default": false,
+      "title": "Has Split Groups",
+      "type": "boolean"
+    },
+    "has_validated_safe_targets": {
+      "default": false,
+      "title": "Has Validated Safe Targets",
+      "type": "boolean"
+    },
+    "has_validation_level": {
+      "default": false,
+      "title": "Has Validation Level",
+      "type": "boolean"
+    },
+    "languages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Languages",
+      "type": "array"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "supported_goals": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Supported Goals",
+      "type": "array"
+    }
+  },
+  "required": [
+    "dataset_name"
+  ],
+  "title": "DatasetCapabilities",
+  "type": "object"
+}

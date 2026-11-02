@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Which attack goals a case can legitimately participate in.\n\nThis is computed by the dataset adapter (and re-checked by the generation\npipeline) so that a case without adjudicated severity can never silently\nenter a severity experiment, and a case without a verified safe target can\nnever silently enter a false-positive experiment.",
+  "properties": {
+    "evidence_corruption": {
+      "default": true,
+      "title": "Evidence Corruption",
+      "type": "boolean"
+    },
+    "false_negative": {
+      "default": true,
+      "title": "False Negative",
+      "type": "boolean"
+    },
+    "false_positive": {
+      "default": false,
+      "title": "False Positive",
+      "type": "boolean"
+    },
+    "reasons": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "object"
+    },
+    "severity_downgrade": {
+      "default": false,
+      "title": "Severity Downgrade",
+      "type": "boolean"
+    },
+    "severity_inflation": {
+      "default": false,
+      "title": "Severity Inflation",
+      "type": "boolean"
+    },
+    "verification_diversion": {
+      "default": true,
+      "title": "Verification Diversion",
+      "type": "boolean"
+    }
+  },
+  "title": "EvaluationEligibility",
+  "type": "object"
+}

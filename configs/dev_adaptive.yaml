@@ -1,0 +1,37 @@
+# Development-set adaptive optimisation.
+#
+# Requires an OpenAI-compatible endpoint through the configured environment
+# variables (VULNMIRAGE_LLM_BASE_URL / VULNMIRAGE_LLM_API_KEY /
+# VULNMIRAGE_LLM_MODEL).  Without credentials, keep backend=template and run
+# optimize-payloads in candidate_selection mode (rewrite_enabled=false); the CLI
+# reports the mode explicitly and never calls it adaptive search.
+schema_version: "1.0"
+workspace_root: "workspace/dev-adaptive"
+repo_cache: "workspace/dev-adaptive/cache/repos"
+
+generation:
+  global_seed: 20261020
+  split: "dev-known"
+  backend: llm
+  llm_model: null
+  llm_prompt: "prompts/generation/attack_plan.md"
+  oracle_access: target_details
+  report_access: none
+  trace_access: none
+  target_source: oracle
+  candidates_per_strategy: 3
+  benign_controls: true
+  control_kinds: ["benign"]
+  rewrite_enabled: true
+  rewrite_budget:
+    max_queries: 50
+    max_llm_calls: 10
+    max_tokens: 200000
+
+validation:
+  profile: trace-grounded
+
+execution:
+  repetitions: 1
+  workers: 2
+  timeout_seconds: 480

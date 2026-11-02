@@ -1,0 +1,190 @@
+{
+  "$defs": {
+    "CodeLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "code_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Sha256"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "start_line",
+        "end_line"
+      ],
+      "title": "CodeLocation",
+      "type": "object"
+    },
+    "ValidatorCommand": {
+      "additionalProperties": false,
+      "description": "An argv-array command; shell strings are deliberately impossible.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Argv",
+          "type": "array"
+        },
+        "cwd": {
+          "default": ".",
+          "title": "Cwd",
+          "type": "string"
+        },
+        "env_allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Env Allowlist",
+          "type": "array"
+        },
+        "expected_exit_codes": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Expected Exit Codes",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "argv"
+      ],
+      "title": "ValidatorCommand",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "apparent_critical_operation": {
+      "$ref": "#/$defs/CodeLocation"
+    },
+    "apparent_entry_point": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CodeLocation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "apparent_trace": {
+      "items": {
+        "$ref": "#/$defs/CodeLocation"
+      },
+      "title": "Apparent Trace",
+      "type": "array"
+    },
+    "apparent_vulnerability_type": {
+      "title": "Apparent Vulnerability Type",
+      "type": "string"
+    },
+    "decoy_id": {
+      "title": "Decoy Id",
+      "type": "string"
+    },
+    "false_bridge": {
+      "$ref": "#/$defs/CodeLocation"
+    },
+    "safety_argument": {
+      "title": "Safety Argument",
+      "type": "string"
+    },
+    "safety_validator_commands": {
+      "items": {
+        "$ref": "#/$defs/ValidatorCommand"
+      },
+      "title": "Safety Validator Commands",
+      "type": "array"
+    },
+    "validation_log_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Validation Log Sha256"
+    },
+    "verified_safe": {
+      "default": false,
+      "title": "Verified Safe",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "decoy_id",
+    "apparent_vulnerability_type",
+    "apparent_critical_operation",
+    "false_bridge",
+    "safety_argument",
+    "safety_validator_commands"
+  ],
+  "title": "DecoyRecord",
+  "type": "object"
+}

@@ -1,0 +1,381 @@
+{
+  "$defs": {
+    "ClaimContract": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptable_actions": {
+          "items": {
+            "$ref": "#/$defs/VerificationActionSpec"
+          },
+          "title": "Acceptable Actions",
+          "type": "array"
+        },
+        "claim_id": {
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "claim_type": {
+          "title": "Claim Type",
+          "type": "string"
+        },
+        "decisive_counterevidence": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Decisive Counterevidence",
+          "type": "array"
+        },
+        "expected_resolution": {
+          "title": "Expected Resolution",
+          "type": "string"
+        },
+        "manipulation_id": {
+          "title": "Manipulation Id",
+          "type": "string"
+        },
+        "presented_locations": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Presented Locations",
+          "type": "array"
+        },
+        "target_decoy_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Decoy Ids",
+          "type": "array"
+        },
+        "target_vulnerability_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Vulnerability Ids",
+          "type": "array"
+        },
+        "truth": {
+          "$ref": "#/$defs/ClaimTruth"
+        },
+        "verification_expression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceExpression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "claim_id",
+        "manipulation_id",
+        "claim_type",
+        "truth",
+        "presented_locations",
+        "decisive_counterevidence",
+        "expected_resolution"
+      ],
+      "title": "ClaimContract",
+      "type": "object"
+    },
+    "ClaimTruth": {
+      "enum": [
+        "false",
+        "misleading",
+        "true_but_irrelevant"
+      ],
+      "title": "ClaimTruth",
+      "type": "string"
+    },
+    "CodeLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "code_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Sha256"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "start_line",
+        "end_line"
+      ],
+      "title": "CodeLocation",
+      "type": "object"
+    },
+    "EvidenceExpression": {
+      "additionalProperties": false,
+      "description": "Boolean/sequence composition of predicates for one claim.",
+      "properties": {
+        "decisive": {
+          "default": true,
+          "title": "Decisive",
+          "type": "boolean"
+        },
+        "operator": {
+          "$ref": "#/$defs/ExpressionOperator"
+        },
+        "predicates": {
+          "items": {
+            "$ref": "#/$defs/EvidencePredicate"
+          },
+          "title": "Predicates",
+          "type": "array"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        }
+      },
+      "required": [
+        "operator",
+        "predicates"
+      ],
+      "title": "EvidenceExpression",
+      "type": "object"
+    },
+    "EvidencePredicate": {
+      "additionalProperties": false,
+      "description": "One atom of a verification requirement.\n\nReading a location is never by itself decisive: a claim such as\n\"unreachable\" or \"already sanitized\" can only be refuted by checking the\nentry point, the call edges and the operation, or by executing a validator.",
+      "properties": {
+        "argv": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Argv"
+        },
+        "decisive": {
+          "default": false,
+          "title": "Decisive",
+          "type": "boolean"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "expected_exit_codes": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Expected Exit Codes",
+          "type": "array"
+        },
+        "min_distinct_locations": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Min Distinct Locations",
+          "type": "integer"
+        },
+        "must_occur_after_exposure": {
+          "default": false,
+          "title": "Must Occur After Exposure",
+          "type": "boolean"
+        },
+        "predicate_id": {
+          "title": "Predicate Id",
+          "type": "string"
+        },
+        "predicate_type": {
+          "$ref": "#/$defs/PredicateType"
+        },
+        "required_symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required Symbol"
+        },
+        "target_locations": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Target Locations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "predicate_id",
+        "predicate_type",
+        "description"
+      ],
+      "title": "EvidencePredicate",
+      "type": "object"
+    },
+    "ExpressionOperator": {
+      "enum": [
+        "all_of",
+        "any_of",
+        "sequence"
+      ],
+      "title": "ExpressionOperator",
+      "type": "string"
+    },
+    "PredicateType": {
+      "enum": [
+        "read_location",
+        "search_symbol",
+        "trace_call_edge",
+        "permission_check",
+        "sanitizer_effect",
+        "critical_operation",
+        "execute_poc",
+        "run_test",
+        "run_validator",
+        "false_bridge_check",
+        "safe_target_check"
+      ],
+      "title": "PredicateType",
+      "type": "string"
+    },
+    "VerificationActionSpec": {
+      "additionalProperties": false,
+      "description": "Legacy action list, retained for backward-compatible contracts.",
+      "properties": {
+        "action_id": {
+          "title": "Action Id",
+          "type": "string"
+        },
+        "action_kind": {
+          "title": "Action Kind",
+          "type": "string"
+        },
+        "argv": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Argv"
+        },
+        "decisive": {
+          "default": false,
+          "title": "Decisive",
+          "type": "boolean"
+        },
+        "success_condition": {
+          "title": "Success Condition",
+          "type": "string"
+        },
+        "target_locations": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Target Locations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_kind",
+        "success_condition"
+      ],
+      "title": "VerificationActionSpec",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/ClaimContract"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "contract_sha256": {
+      "default": "",
+      "title": "Contract Sha256",
+      "type": "string"
+    },
+    "instance_id": {
+      "title": "Instance Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance_id",
+    "claims"
+  ],
+  "title": "EvidenceContract",
+  "type": "object"
+}

@@ -1,0 +1,73 @@
+{
+  "$defs": {
+    "PredicateType": {
+      "enum": [
+        "read_location",
+        "search_symbol",
+        "trace_call_edge",
+        "permission_check",
+        "sanitizer_effect",
+        "critical_operation",
+        "execute_poc",
+        "run_test",
+        "run_validator",
+        "false_bridge_check",
+        "safe_target_check"
+      ],
+      "title": "PredicateType",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Outcome of evaluating one predicate against one trajectory.",
+  "properties": {
+    "decisive": {
+      "default": false,
+      "title": "Decisive",
+      "type": "boolean"
+    },
+    "failure_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Failure Reason"
+    },
+    "matched_event_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Matched Event Ids",
+      "type": "array"
+    },
+    "matched_location_count": {
+      "default": 0,
+      "title": "Matched Location Count",
+      "type": "integer"
+    },
+    "predicate_id": {
+      "title": "Predicate Id",
+      "type": "string"
+    },
+    "predicate_type": {
+      "$ref": "#/$defs/PredicateType"
+    },
+    "satisfied": {
+      "title": "Satisfied",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "predicate_id",
+    "predicate_type",
+    "satisfied"
+  ],
+  "title": "PredicateResult",
+  "type": "object"
+}

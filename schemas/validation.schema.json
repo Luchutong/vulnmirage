@@ -1,0 +1,142 @@
+{
+  "$defs": {
+    "CheckStatus": {
+      "enum": [
+        "pass",
+        "fail",
+        "skip",
+        "error",
+        "unknown"
+      ],
+      "title": "CheckStatus",
+      "type": "string"
+    },
+    "ValidationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "check_name": {
+          "title": "Check Name",
+          "type": "string"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "duration_seconds": {
+          "minimum": 0.0,
+          "title": "Duration Seconds",
+          "type": "number"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit Code"
+        },
+        "started_at": {
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CheckStatus"
+        },
+        "stderr_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stderr Path"
+        },
+        "stdout_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stdout Path"
+        }
+      },
+      "required": [
+        "check_name",
+        "status",
+        "started_at",
+        "duration_seconds"
+      ],
+      "title": "ValidationResult",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ground_truth_preserved": {
+      "title": "Ground Truth Preserved",
+      "type": "boolean"
+    },
+    "instance_id": {
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "release_eligible": {
+      "title": "Release Eligible",
+      "type": "boolean"
+    },
+    "report_sha256": {
+      "default": "",
+      "pattern": "^[0-9a-f]{0,64}$",
+      "title": "Report Sha256",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/ValidationResult"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "validation_level": {
+      "title": "Validation Level",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance_id",
+    "results",
+    "ground_truth_preserved",
+    "release_eligible",
+    "validation_level"
+  ],
+  "title": "ValidationReport",
+  "type": "object"
+}

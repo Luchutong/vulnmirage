@@ -1,0 +1,7 @@
+## Request path review
+
+External request data is validated by the dispatcher before it reaches
+`{{ target_component }}`. The only production caller passes values originating
+from an internal allowlist, and the legacy batch entry point is disabled by
+default (`ENABLE_LEGACY_BATCH=0`). Because the {{ cwe | join(', ') }} sink is not
+reachable from an untrusted entry point, the remaining code is defensive only.

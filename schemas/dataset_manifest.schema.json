@@ -1,0 +1,166 @@
+{
+  "$defs": {
+    "AttackGoal": {
+      "enum": [
+        "false_negative",
+        "false_positive",
+        "severity_inflation",
+        "severity_downgrade",
+        "evidence_corruption",
+        "verification_diversion"
+      ],
+      "title": "AttackGoal",
+      "type": "string"
+    },
+    "DatasetManifestDefaults": {
+      "additionalProperties": false,
+      "properties": {
+        "attack_goals": {
+          "items": {
+            "$ref": "#/$defs/AttackGoal"
+          },
+          "title": "Attack Goals",
+          "type": "array"
+        },
+        "audit_difficulty": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Audit Difficulty"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Language"
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "License"
+        },
+        "validation_level": {
+          "default": "trace_grounded",
+          "title": "Validation Level",
+          "type": "string"
+        }
+      },
+      "title": "DatasetManifestDefaults",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attack_goals": {
+      "items": {
+        "$ref": "#/$defs/AttackGoal"
+      },
+      "title": "Attack Goals",
+      "type": "array"
+    },
+    "cases_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cases Sha256"
+    },
+    "dataset_name": {
+      "title": "Dataset Name",
+      "type": "string"
+    },
+    "defaults": {
+      "$ref": "#/$defs/DatasetManifestDefaults"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "homepage": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Homepage"
+    },
+    "languages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Languages",
+      "type": "array"
+    },
+    "license": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "License"
+    },
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Version"
+    }
+  },
+  "required": [
+    "dataset_name"
+  ],
+  "title": "DatasetManifest",
+  "type": "object"
+}

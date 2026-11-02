@@ -1,0 +1,243 @@
+{
+  "$defs": {
+    "CodeLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "code_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Sha256"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "start_line",
+        "end_line"
+      ],
+      "title": "CodeLocation",
+      "type": "object"
+    },
+    "SafeTargetProofMethod": {
+      "enum": [
+        "fixed_commit_path",
+        "human_annotated",
+        "validated_decoy"
+      ],
+      "title": "SafeTargetProofMethod",
+      "type": "string"
+    },
+    "SafeTargetSource": {
+      "enum": [
+        "fix_commit",
+        "human_annotation",
+        "synthetic_decoy"
+      ],
+      "title": "SafeTargetSource",
+      "type": "string"
+    },
+    "ValidatorCommand": {
+      "additionalProperties": false,
+      "description": "An argv-array command; shell strings are deliberately impossible.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Argv",
+          "type": "array"
+        },
+        "cwd": {
+          "default": ".",
+          "title": "Cwd",
+          "type": "string"
+        },
+        "env_allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Env Allowlist",
+          "type": "array"
+        },
+        "expected_exit_codes": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Expected Exit Codes",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "argv"
+      ],
+      "title": "ValidatorCommand",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A location whose *safety from a stated CWE* has been validated.\n\n``validated_safe`` may only become ``True`` after ``validator_commands``\nran with the expected exit code; the digest of the validation log is\nrecorded in ``validation_log_sha256`` so the claim is auditable.",
+  "properties": {
+    "cwe": {
+      "title": "Cwe",
+      "type": "string"
+    },
+    "end_line": {
+      "minimum": 1,
+      "title": "End Line",
+      "type": "integer"
+    },
+    "evidence_locations": {
+      "items": {
+        "$ref": "#/$defs/CodeLocation"
+      },
+      "title": "Evidence Locations",
+      "type": "array"
+    },
+    "file": {
+      "title": "File",
+      "type": "string"
+    },
+    "proof_method": {
+      "$ref": "#/$defs/SafeTargetProofMethod"
+    },
+    "safe_target_id": {
+      "title": "Safe Target Id",
+      "type": "string"
+    },
+    "safety_claim": {
+      "title": "Safety Claim",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/SafeTargetSource",
+      "default": "human_annotation"
+    },
+    "source_reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Reference"
+    },
+    "start_line": {
+      "minimum": 1,
+      "title": "Start Line",
+      "type": "integer"
+    },
+    "validated_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Validated At"
+    },
+    "validated_safe": {
+      "default": false,
+      "title": "Validated Safe",
+      "type": "boolean"
+    },
+    "validation_log_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Validation Log Sha256"
+    },
+    "validator_commands": {
+      "items": {
+        "$ref": "#/$defs/ValidatorCommand"
+      },
+      "title": "Validator Commands",
+      "type": "array"
+    },
+    "vulnerability_type": {
+      "title": "Vulnerability Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "safe_target_id",
+    "file",
+    "start_line",
+    "end_line",
+    "vulnerability_type",
+    "cwe",
+    "safety_claim",
+    "proof_method"
+  ],
+  "title": "SafeTargetContract",
+  "type": "object"
+}

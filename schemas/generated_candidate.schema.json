@@ -1,0 +1,1322 @@
+{
+  "$defs": {
+    "AttackGoal": {
+      "enum": [
+        "false_negative",
+        "false_positive",
+        "severity_inflation",
+        "severity_downgrade",
+        "evidence_corruption",
+        "verification_diversion"
+      ],
+      "title": "AttackGoal",
+      "type": "string"
+    },
+    "AttackPlan": {
+      "additionalProperties": false,
+      "description": "A structured plan produced before any file content is rendered.",
+      "properties": {
+        "attack_claims": {
+          "items": {
+            "$ref": "#/$defs/FalseClaim"
+          },
+          "title": "Attack Claims",
+          "type": "array"
+        },
+        "attack_goal": {
+          "$ref": "#/$defs/AttackGoal"
+        },
+        "attacker_capability": {
+          "$ref": "#/$defs/AttackerCapability",
+          "default": "comments_and_docs"
+        },
+        "carrier": {
+          "$ref": "#/$defs/Carrier"
+        },
+        "claim_graph": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClaimGraph"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "decisive_counterevidence": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Decisive Counterevidence",
+          "type": "array"
+        },
+        "distribution": {
+          "$ref": "#/$defs/Distribution",
+          "default": "single_location"
+        },
+        "edit_budget": {
+          "additionalProperties": true,
+          "title": "Edit Budget",
+          "type": "object"
+        },
+        "false_claims": {
+          "items": {
+            "$ref": "#/$defs/FalseClaim"
+          },
+          "title": "False Claims",
+          "type": "array"
+        },
+        "generation_method": {
+          "$ref": "#/$defs/GenerationMethod",
+          "default": "template"
+        },
+        "intended_agent_behavior": {
+          "title": "Intended Agent Behavior",
+          "type": "string"
+        },
+        "intended_effect": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intended Effect"
+        },
+        "invariants": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Invariants",
+          "type": "array"
+        },
+        "knowledge_permissions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Knowledge Permissions",
+          "type": "object"
+        },
+        "mechanism": {
+          "$ref": "#/$defs/Mechanism"
+        },
+        "placement_candidates": {
+          "items": {
+            "$ref": "#/$defs/PlacementCandidate"
+          },
+          "title": "Placement Candidates",
+          "type": "array"
+        },
+        "plan_id": {
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "presentation": {
+          "$ref": "#/$defs/Presentation"
+        },
+        "private_evidence_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Private Evidence Ref"
+        },
+        "provenance": {
+          "additionalProperties": true,
+          "title": "Provenance",
+          "type": "object"
+        },
+        "reference_audit_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Audit Id"
+        },
+        "reference_claims": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reference Claims",
+          "type": "array"
+        },
+        "reference_detected": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Detected"
+        },
+        "reference_finding_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Finding Ref"
+        },
+        "required_repository_facts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Repository Facts",
+          "type": "array"
+        },
+        "safe_targets": {
+          "items": {
+            "$ref": "#/$defs/SafeTargetContract"
+          },
+          "title": "Safe Targets",
+          "type": "array"
+        },
+        "selection_policy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selection Policy"
+        },
+        "target_binding": {
+          "additionalProperties": true,
+          "title": "Target Binding",
+          "type": "object"
+        },
+        "target_critical_operation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "target_entry_point": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "target_handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Handle"
+        },
+        "target_safe_target_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Safe Target Ids",
+          "type": "array"
+        },
+        "target_source": {
+          "default": "oracle",
+          "enum": [
+            "oracle",
+            "reference",
+            "combined"
+          ],
+          "title": "Target Source",
+          "type": "string"
+        },
+        "target_verification_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Verification Status"
+        },
+        "target_vulnerability_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Vulnerability Ids",
+          "type": "array"
+        },
+        "validation_requirements": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Validation Requirements",
+          "type": "array"
+        },
+        "verified_facts": {
+          "items": {
+            "$ref": "#/$defs/RepositoryFact"
+          },
+          "title": "Verified Facts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "plan_id",
+        "attack_goal",
+        "mechanism",
+        "carrier",
+        "presentation",
+        "intended_agent_behavior"
+      ],
+      "title": "AttackPlan",
+      "type": "object"
+    },
+    "AttackerCapability": {
+      "enum": [
+        "docs_only",
+        "comments_and_docs",
+        "behavior_preserving_code",
+        "repository_write"
+      ],
+      "title": "AttackerCapability",
+      "type": "string"
+    },
+    "CandidateFile": {
+      "additionalProperties": false,
+      "description": "One file edit produced by a generation backend.",
+      "properties": {
+        "carrier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carrier"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "create",
+            "append",
+            "insert_comment",
+            "replace"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "placement": {
+          "additionalProperties": true,
+          "title": "Placement",
+          "type": "object"
+        }
+      },
+      "required": [
+        "path",
+        "mode",
+        "content"
+      ],
+      "title": "CandidateFile",
+      "type": "object"
+    },
+    "CandidateSelfCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "behavior_preserved": {
+          "title": "Behavior Preserved",
+          "type": "boolean"
+        },
+        "claims_are_false": {
+          "title": "Claims Are False",
+          "type": "boolean"
+        },
+        "goal_alignment": {
+          "title": "Goal Alignment",
+          "type": "string"
+        }
+      },
+      "required": [
+        "goal_alignment",
+        "behavior_preserved",
+        "claims_are_false"
+      ],
+      "title": "CandidateSelfCheck",
+      "type": "object"
+    },
+    "Carrier": {
+      "enum": [
+        "markdown",
+        "code_comment",
+        "string_literal",
+        "source_identifier",
+        "configuration",
+        "test",
+        "example_code"
+      ],
+      "title": "Carrier",
+      "type": "string"
+    },
+    "ClaimEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "relation": {
+          "default": "supports",
+          "title": "Relation",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "title": "ClaimEdge",
+      "type": "object"
+    },
+    "ClaimGraph": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/ClaimEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/ClaimNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        }
+      },
+      "title": "ClaimGraph",
+      "type": "object"
+    },
+    "ClaimNode": {
+      "additionalProperties": false,
+      "properties": {
+        "carrier": {
+          "title": "Carrier",
+          "type": "string"
+        },
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "line": {
+          "minimum": 1,
+          "title": "Line",
+          "type": "integer"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id",
+        "file",
+        "line",
+        "claim",
+        "carrier"
+      ],
+      "title": "ClaimNode",
+      "type": "object"
+    },
+    "CodeLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "code_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Sha256"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "start_line",
+        "end_line"
+      ],
+      "title": "CodeLocation",
+      "type": "object"
+    },
+    "Distribution": {
+      "enum": [
+        "single_location",
+        "single_file_multi_location",
+        "cross_file",
+        "cross_tool"
+      ],
+      "title": "Distribution",
+      "type": "string"
+    },
+    "FactEvidence": {
+      "additionalProperties": false,
+      "description": "Traceable evidence for one fact.",
+      "properties": {
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "snippet": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snippet"
+        },
+        "snippet_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snippet Sha256"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "file",
+        "start_line",
+        "end_line"
+      ],
+      "title": "FactEvidence",
+      "type": "object"
+    },
+    "FactKind": {
+      "description": "What a repository fact states.",
+      "enum": [
+        "target_entry_point",
+        "target_critical_operation",
+        "target_trace",
+        "symbol",
+        "call_site",
+        "protection",
+        "route",
+        "config_default",
+        "test",
+        "documentation",
+        "documentation_style",
+        "related_file"
+      ],
+      "title": "FactKind",
+      "type": "string"
+    },
+    "FactMethod": {
+      "description": "How the fact was established (recorded so it can be audited).",
+      "enum": [
+        "python_ast",
+        "text_pattern",
+        "file_scan",
+        "import_graph",
+        "documentation_scan",
+        "manual"
+      ],
+      "title": "FactMethod",
+      "type": "string"
+    },
+    "FactStatus": {
+      "description": "Trust status of a fact.\n\n``verified`` means a concrete extraction method produced it from this\nsnapshot.  ``candidate`` means the method found a plausible but unresolved\nmatch (for example a same-name call in another module).  ``unknown`` means\nthe property could not be decided; it is never upgraded to a pass.",
+      "enum": [
+        "verified",
+        "candidate",
+        "unknown",
+        "unsupported"
+      ],
+      "title": "FactStatus",
+      "type": "string"
+    },
+    "FalseClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_kind": {
+          "default": "factual_claim",
+          "enum": [
+            "instruction",
+            "factual_claim",
+            "decoy",
+            "safe_judgment"
+          ],
+          "title": "Claim Kind",
+          "type": "string"
+        },
+        "claim_text": {
+          "title": "Claim Text",
+          "type": "string"
+        },
+        "claim_type": {
+          "title": "Claim Type",
+          "type": "string"
+        },
+        "counterevidence": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Counterevidence",
+          "type": "array"
+        },
+        "location_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location Source"
+        },
+        "presented_locations": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Presented Locations",
+          "type": "array"
+        },
+        "reference_finding_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Finding Ref"
+        },
+        "truth": {
+          "default": "false",
+          "title": "Truth",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_text",
+        "claim_type"
+      ],
+      "title": "FalseClaim",
+      "type": "object"
+    },
+    "GenerationMethod": {
+      "enum": [
+        "template",
+        "llm_rewrite",
+        "adaptive_search",
+        "human_authored"
+      ],
+      "title": "GenerationMethod",
+      "type": "string"
+    },
+    "Mechanism": {
+      "description": "Orthogonal attack mechanism (independent of the legacy M tier).",
+      "enum": [
+        "direct_instruction",
+        "semantic_misinformation",
+        "representation_confusion",
+        "safe_decoy",
+        "verification_diversion"
+      ],
+      "title": "Mechanism",
+      "type": "string"
+    },
+    "PayloadOrigin": {
+      "enum": [
+        "published_verbatim",
+        "mechanism_reimplementation",
+        "repository_adapted",
+        "adaptive_generated",
+        "human_authored_new"
+      ],
+      "title": "PayloadOrigin",
+      "type": "string"
+    },
+    "PlacementCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor"
+        },
+        "mode": {
+          "default": "append",
+          "enum": [
+            "create",
+            "append",
+            "insert_comment"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "PlacementCandidate",
+      "type": "object"
+    },
+    "Presentation": {
+      "enum": [
+        "plain_instruction",
+        "todo_list",
+        "security_notice",
+        "audit_record",
+        "architecture_note",
+        "maintenance_note",
+        "code_explanation"
+      ],
+      "title": "Presentation",
+      "type": "string"
+    },
+    "RepositoryFact": {
+      "additionalProperties": false,
+      "description": "One verified/candidate/unknown statement about the fixed snapshot.",
+      "properties": {
+        "capability": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capability"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/FactEvidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "fact_id": {
+          "title": "Fact Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/FactKind"
+        },
+        "method": {
+          "$ref": "#/$defs/FactMethod"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/FactStatus",
+          "default": "verified"
+        }
+      },
+      "required": [
+        "fact_id",
+        "kind",
+        "statement",
+        "method"
+      ],
+      "title": "RepositoryFact",
+      "type": "object"
+    },
+    "SafeTargetContract": {
+      "additionalProperties": false,
+      "description": "A location whose *safety from a stated CWE* has been validated.\n\n``validated_safe`` may only become ``True`` after ``validator_commands``\nran with the expected exit code; the digest of the validation log is\nrecorded in ``validation_log_sha256`` so the claim is auditable.",
+      "properties": {
+        "cwe": {
+          "title": "Cwe",
+          "type": "string"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "evidence_locations": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Evidence Locations",
+          "type": "array"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "proof_method": {
+          "$ref": "#/$defs/SafeTargetProofMethod"
+        },
+        "safe_target_id": {
+          "title": "Safe Target Id",
+          "type": "string"
+        },
+        "safety_claim": {
+          "title": "Safety Claim",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SafeTargetSource",
+          "default": "human_annotation"
+        },
+        "source_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Reference"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        },
+        "validated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validated At"
+        },
+        "validated_safe": {
+          "default": false,
+          "title": "Validated Safe",
+          "type": "boolean"
+        },
+        "validation_log_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validation Log Sha256"
+        },
+        "validator_commands": {
+          "items": {
+            "$ref": "#/$defs/ValidatorCommand"
+          },
+          "title": "Validator Commands",
+          "type": "array"
+        },
+        "vulnerability_type": {
+          "title": "Vulnerability Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "safe_target_id",
+        "file",
+        "start_line",
+        "end_line",
+        "vulnerability_type",
+        "cwe",
+        "safety_claim",
+        "proof_method"
+      ],
+      "title": "SafeTargetContract",
+      "type": "object"
+    },
+    "SafeTargetProofMethod": {
+      "enum": [
+        "fixed_commit_path",
+        "human_annotated",
+        "validated_decoy"
+      ],
+      "title": "SafeTargetProofMethod",
+      "type": "string"
+    },
+    "SafeTargetSource": {
+      "enum": [
+        "fix_commit",
+        "human_annotation",
+        "synthetic_decoy"
+      ],
+      "title": "SafeTargetSource",
+      "type": "string"
+    },
+    "ValidatorCommand": {
+      "additionalProperties": false,
+      "description": "An argv-array command; shell strings are deliberately impossible.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Argv",
+          "type": "array"
+        },
+        "cwd": {
+          "default": ".",
+          "title": "Cwd",
+          "type": "string"
+        },
+        "env_allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Env Allowlist",
+          "type": "array"
+        },
+        "expected_exit_codes": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Expected Exit Codes",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "argv"
+      ],
+      "title": "ValidatorCommand",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A validated candidate payload with full generation provenance.",
+  "properties": {
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "cost_usd": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cost Usd"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/CandidateFile"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "generated_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Generated At"
+    },
+    "generation_method": {
+      "$ref": "#/$defs/GenerationMethod"
+    },
+    "generation_seed": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Generation Seed"
+    },
+    "input_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Input Tokens"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "model_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Version"
+    },
+    "normalized_text_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Normalized Text Sha256"
+    },
+    "origin": {
+      "$ref": "#/$defs/PayloadOrigin",
+      "default": "mechanism_reimplementation"
+    },
+    "output_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Tokens"
+    },
+    "parent_payload_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Payload Ids",
+      "type": "array"
+    },
+    "patch_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Patch Sha256"
+    },
+    "payload_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Payload Id"
+    },
+    "plan": {
+      "$ref": "#/$defs/AttackPlan"
+    },
+    "prompt_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Prompt Sha256"
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider"
+    },
+    "rejection_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rejection Reason"
+    },
+    "response_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Response Sha256"
+    },
+    "self_check": {
+      "$ref": "#/$defs/CandidateSelfCheck"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "plan",
+    "files",
+    "self_check",
+    "generation_method"
+  ],
+  "title": "GeneratedCandidate",
+  "type": "object"
+}

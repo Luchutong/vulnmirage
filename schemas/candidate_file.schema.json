@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One file edit produced by a generation backend.",
+  "properties": {
+    "carrier": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Carrier"
+    },
+    "content": {
+      "title": "Content",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "create",
+        "append",
+        "insert_comment",
+        "replace"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "path": {
+      "title": "Path",
+      "type": "string"
+    },
+    "placement": {
+      "additionalProperties": true,
+      "title": "Placement",
+      "type": "object"
+    }
+  },
+  "required": [
+    "path",
+    "mode",
+    "content"
+  ],
+  "title": "CandidateFile",
+  "type": "object"
+}

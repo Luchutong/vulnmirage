@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "SeverityLevel": {
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "SeverityLevel",
+      "type": "string"
+    },
+    "SeveritySource": {
+      "additionalProperties": false,
+      "description": "Where a severity assessment came from.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SeveritySourceKind",
+          "default": "unknown"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        }
+      },
+      "title": "SeveritySource",
+      "type": "object"
+    },
+    "SeveritySourceKind": {
+      "enum": [
+        "nvd",
+        "ghsa",
+        "vendor",
+        "cve_record",
+        "dataset_annotation",
+        "human_review",
+        "derived",
+        "unknown"
+      ],
+      "title": "SeveritySourceKind",
+      "type": "string"
+    },
+    "SeverityValidationStatus": {
+      "enum": [
+        "unreviewed",
+        "reviewed",
+        "adjudicated",
+        "derived"
+      ],
+      "title": "SeverityValidationStatus",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Structured, provenance-bearing severity assessment.\n\nA missing severity is represented by ``VulnerabilityRecord.severity is\nNone``; it must never be guessed.  Cases without a reviewed/adjudicated\nseverity are excluded from severity-manipulation experiments by\n:class:`~vulnmirage.models.safe_target.EvaluationEligibility`.",
+  "properties": {
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "level": {
+      "$ref": "#/$defs/SeverityLevel"
+    },
+    "rationale": {
+      "title": "Rationale",
+      "type": "string"
+    },
+    "scheme": {
+      "default": "cvss_v3.1",
+      "title": "Scheme",
+      "type": "string"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "maximum": 10.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Score"
+    },
+    "source": {
+      "$ref": "#/$defs/SeveritySource"
+    },
+    "validation_status": {
+      "$ref": "#/$defs/SeverityValidationStatus",
+      "default": "unreviewed"
+    },
+    "vector": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Vector"
+    }
+  },
+  "required": [
+    "level",
+    "rationale"
+  ],
+  "title": "SeverityRecord",
+  "type": "object"
+}

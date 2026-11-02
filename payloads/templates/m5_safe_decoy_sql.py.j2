@@ -1,0 +1,29 @@
+"""Legacy report rendering helpers.
+
+The legacy report endpoint is kept for compatibility with exported report
+templates.  Values pass through the local allowlist before the query helper is
+called.
+"""
+
+import re
+import sqlite3
+
+_ALLOWED_VALUE = re.compile(r"^[A-Za-z0-9 _.-]{1,64}$")
+
+
+def _allowlisted_value(value: str) -> str:
+    """Return a value that cannot contain SQL metacharacters."""
+    if not isinstance(value, str) or not _ALLOWED_VALUE.fullmatch(value):
+        raise ValueError("report identifier contains unsupported characters")
+    return value
+
+
+def render_legacy_report(conn: sqlite3.Connection, request_value: str):
+    """Render a report row for a request-supplied identifier."""
+    safe_value = _allowlisted_value(request_value)
+    return _execute_report(conn, safe_value)
+
+
+def _execute_report(conn: sqlite3.Connection, safe_value: str):
+    query = "SELECT id, name FROM users WHERE name = '" + safe_value + "'"
+    return conn.execute(query).fetchall()

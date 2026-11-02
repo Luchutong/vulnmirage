@@ -1,0 +1,909 @@
+{
+  "$defs": {
+    "AdaptationRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "adaptation_notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adaptation Notes"
+        },
+        "changes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Changes",
+          "type": "array"
+        },
+        "repository_specific": {
+          "default": false,
+          "title": "Repository Specific",
+          "type": "boolean"
+        },
+        "verbatim_copy": {
+          "default": false,
+          "title": "Verbatim Copy",
+          "type": "boolean"
+        }
+      },
+      "title": "AdaptationRecord",
+      "type": "object"
+    },
+    "AttackGoal": {
+      "enum": [
+        "false_negative",
+        "false_positive",
+        "severity_inflation",
+        "severity_downgrade",
+        "evidence_corruption",
+        "verification_diversion"
+      ],
+      "title": "AttackGoal",
+      "type": "string"
+    },
+    "AttackerCapability": {
+      "enum": [
+        "docs_only",
+        "comments_and_docs",
+        "behavior_preserving_code",
+        "repository_write"
+      ],
+      "title": "AttackerCapability",
+      "type": "string"
+    },
+    "ClaimEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "relation": {
+          "default": "supports",
+          "title": "Relation",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "title": "ClaimEdge",
+      "type": "object"
+    },
+    "ClaimGraph": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/ClaimEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/ClaimNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        }
+      },
+      "title": "ClaimGraph",
+      "type": "object"
+    },
+    "ClaimNode": {
+      "additionalProperties": false,
+      "properties": {
+        "carrier": {
+          "title": "Carrier",
+          "type": "string"
+        },
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "line": {
+          "minimum": 1,
+          "title": "Line",
+          "type": "integer"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id",
+        "file",
+        "line",
+        "claim",
+        "carrier"
+      ],
+      "title": "ClaimNode",
+      "type": "object"
+    },
+    "CodeLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "code_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Sha256"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "start_line",
+        "end_line"
+      ],
+      "title": "CodeLocation",
+      "type": "object"
+    },
+    "Distribution": {
+      "enum": [
+        "single_location",
+        "single_file_multi_location",
+        "cross_file",
+        "cross_tool"
+      ],
+      "title": "Distribution",
+      "type": "string"
+    },
+    "GenerationMethod": {
+      "enum": [
+        "template",
+        "llm_rewrite",
+        "adaptive_search",
+        "human_authored"
+      ],
+      "title": "GenerationMethod",
+      "type": "string"
+    },
+    "LiteratureSource": {
+      "additionalProperties": false,
+      "description": "A published technique that a payload borrows from.\n\nOnly the *mechanism* is reproduced unless the original text and licence\npermit verbatim redistribution; see :class:`PayloadProvenance`.",
+      "properties": {
+        "borrowed_component": {
+          "title": "Borrowed Component",
+          "type": "string"
+        },
+        "original_attack_goal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Attack Goal"
+        },
+        "original_carrier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Carrier"
+        },
+        "paper_title": {
+          "title": "Paper Title",
+          "type": "string"
+        },
+        "paper_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paper Url"
+        }
+      },
+      "required": [
+        "paper_title",
+        "borrowed_component"
+      ],
+      "title": "LiteratureSource",
+      "type": "object"
+    },
+    "ManipulationTier": {
+      "enum": [
+        "M0",
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5",
+        "M6"
+      ],
+      "title": "ManipulationTier",
+      "type": "string"
+    },
+    "Mechanism": {
+      "description": "Orthogonal attack mechanism (independent of the legacy M tier).",
+      "enum": [
+        "direct_instruction",
+        "semantic_misinformation",
+        "representation_confusion",
+        "safe_decoy",
+        "verification_diversion"
+      ],
+      "title": "Mechanism",
+      "type": "string"
+    },
+    "PayloadOrigin": {
+      "enum": [
+        "published_verbatim",
+        "mechanism_reimplementation",
+        "repository_adapted",
+        "adaptive_generated",
+        "human_authored_new"
+      ],
+      "title": "PayloadOrigin",
+      "type": "string"
+    },
+    "PayloadProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "adaptation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdaptationRecord"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "generated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated At"
+        },
+        "generator_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generator Name"
+        },
+        "generator_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generator Version"
+        },
+        "input_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens"
+        },
+        "literature_sources": {
+          "items": {
+            "$ref": "#/$defs/LiteratureSource"
+          },
+          "title": "Literature Sources",
+          "type": "array"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "origin": {
+          "$ref": "#/$defs/PayloadOrigin"
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Tokens"
+        },
+        "parent_payload_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Payload Ids",
+          "type": "array"
+        },
+        "payload_id": {
+          "title": "Payload Id",
+          "type": "string"
+        },
+        "prompt_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Sha256"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "random_seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Random Seed"
+        },
+        "response_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Response Sha256"
+        },
+        "source_license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source License"
+        },
+        "source_title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Title"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        }
+      },
+      "required": [
+        "payload_id",
+        "origin"
+      ],
+      "title": "PayloadProvenance",
+      "type": "object"
+    },
+    "Presentation": {
+      "enum": [
+        "plain_instruction",
+        "todo_list",
+        "security_notice",
+        "audit_record",
+        "architecture_note",
+        "maintenance_note",
+        "code_explanation"
+      ],
+      "title": "Presentation",
+      "type": "string"
+    },
+    "SafeTargetContract": {
+      "additionalProperties": false,
+      "description": "A location whose *safety from a stated CWE* has been validated.\n\n``validated_safe`` may only become ``True`` after ``validator_commands``\nran with the expected exit code; the digest of the validation log is\nrecorded in ``validation_log_sha256`` so the claim is auditable.",
+      "properties": {
+        "cwe": {
+          "title": "Cwe",
+          "type": "string"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "evidence_locations": {
+          "items": {
+            "$ref": "#/$defs/CodeLocation"
+          },
+          "title": "Evidence Locations",
+          "type": "array"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "proof_method": {
+          "$ref": "#/$defs/SafeTargetProofMethod"
+        },
+        "safe_target_id": {
+          "title": "Safe Target Id",
+          "type": "string"
+        },
+        "safety_claim": {
+          "title": "Safety Claim",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SafeTargetSource",
+          "default": "human_annotation"
+        },
+        "source_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Reference"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        },
+        "validated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validated At"
+        },
+        "validated_safe": {
+          "default": false,
+          "title": "Validated Safe",
+          "type": "boolean"
+        },
+        "validation_log_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validation Log Sha256"
+        },
+        "validator_commands": {
+          "items": {
+            "$ref": "#/$defs/ValidatorCommand"
+          },
+          "title": "Validator Commands",
+          "type": "array"
+        },
+        "vulnerability_type": {
+          "title": "Vulnerability Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "safe_target_id",
+        "file",
+        "start_line",
+        "end_line",
+        "vulnerability_type",
+        "cwe",
+        "safety_claim",
+        "proof_method"
+      ],
+      "title": "SafeTargetContract",
+      "type": "object"
+    },
+    "SafeTargetProofMethod": {
+      "enum": [
+        "fixed_commit_path",
+        "human_annotated",
+        "validated_decoy"
+      ],
+      "title": "SafeTargetProofMethod",
+      "type": "string"
+    },
+    "SafeTargetSource": {
+      "enum": [
+        "fix_commit",
+        "human_annotation",
+        "synthetic_decoy"
+      ],
+      "title": "SafeTargetSource",
+      "type": "string"
+    },
+    "ValidatorCommand": {
+      "additionalProperties": false,
+      "description": "An argv-array command; shell strings are deliberately impossible.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Argv",
+          "type": "array"
+        },
+        "cwd": {
+          "default": ".",
+          "title": "Cwd",
+          "type": "string"
+        },
+        "env_allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Env Allowlist",
+          "type": "array"
+        },
+        "expected_exit_codes": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Expected Exit Codes",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "argv"
+      ],
+      "title": "ValidatorCommand",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attack_goal": {
+      "$ref": "#/$defs/AttackGoal"
+    },
+    "attacker_capability": {
+      "$ref": "#/$defs/AttackerCapability",
+      "default": "comments_and_docs"
+    },
+    "carrier": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Carrier"
+    },
+    "carriers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Carriers",
+      "type": "array"
+    },
+    "claim_graph": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ClaimGraph"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "constraints": {
+      "additionalProperties": true,
+      "title": "Constraints",
+      "type": "object"
+    },
+    "designed_tier": {
+      "$ref": "#/$defs/ManipulationTier"
+    },
+    "distribution": {
+      "$ref": "#/$defs/Distribution",
+      "default": "single_location"
+    },
+    "evidence_contract_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence Contract Ref"
+    },
+    "expected_effect": {
+      "title": "Expected Effect",
+      "type": "string"
+    },
+    "files_touched": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Files Touched",
+      "type": "array"
+    },
+    "generation_method": {
+      "$ref": "#/$defs/GenerationMethod",
+      "default": "template"
+    },
+    "manipulation_id": {
+      "title": "Manipulation Id",
+      "type": "string"
+    },
+    "mechanism": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Mechanism"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "operator_names": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Operator Names",
+      "type": "array"
+    },
+    "payloads": {
+      "items": {
+        "$ref": "#/$defs/PayloadProvenance"
+      },
+      "title": "Payloads",
+      "type": "array"
+    },
+    "presentation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Presentation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "safe_targets": {
+      "items": {
+        "$ref": "#/$defs/SafeTargetContract"
+      },
+      "title": "Safe Targets",
+      "type": "array"
+    },
+    "strategy_family": {
+      "title": "Strategy Family",
+      "type": "string"
+    },
+    "target_decoy_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Target Decoy Ids",
+      "type": "array"
+    },
+    "target_safe_target_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Target Safe Target Ids",
+      "type": "array"
+    },
+    "target_vulnerability_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Target Vulnerability Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "manipulation_id",
+    "designed_tier",
+    "attack_goal",
+    "strategy_family",
+    "carriers",
+    "expected_effect"
+  ],
+  "title": "ManipulationSpec",
+  "type": "object"
+}
