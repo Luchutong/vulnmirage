@@ -1,0 +1,50 @@
+schema_version: "1.0"
+
+# OpenCode agent using Alibaba Cloud DashScope's Qwen API directly.
+adapter: opencode
+executable: opencode
+model: dashscope/qwen3-coder-plus
+config_file: opencode.json
+argv:
+  - opencode
+  - run
+  - --model
+  - dashscope/qwen3-coder-plus
+  - --format
+  - json
+  - --auto
+  - --dir
+  - "{repo}"
+  - "{prompt}"
+timeout_seconds: 1200
+workers: 1
+network_enabled: true
+output_format: json
+scaffold: opencode
+scaffold_version: null
+opencode_version: "1.17.18"
+opencode_event_format: "jsonl:type=text,part.text"
+credential_env_allowlist:
+  - DASHSCOPE_API_KEY
+credential_policy: required
+execution_backend: subprocess
+container_runtime: null
+container_image: vulnmirage/audit-agent:latest
+container_agent_executable: opencode
+container_agent_version: null
+container_network: bridge
+inference:
+  temperature: null
+  max_output_tokens: null
+env_allowlist:
+  - PATH
+  - PATHEXT
+  - SYSTEMROOT
+  - WINDIR
+  - COMSPEC
+  - TEMP
+  - TMP
+  - HOME
+  - USERPROFILE
+  - LANG
+  - LC_ALL

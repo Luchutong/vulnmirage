@@ -1,30 +1,35 @@
 schema_version: "1.0"
 
-# OpenCode adapter example.  Provider/model values are placeholders: replace
-# them with the real endpoint/model of your deployment.  Credentials are NOT
-# stored here; only their environment variable *names* are allowlisted.
-# `config_file` is resolved once, relative to THIS YAML file's directory, so
-# the value below refers to configs/opencode.json (never configs/configs/...).
+# OpenCode agent using the official DeepSeek API directly.  Credentials are
+# provided through DEEPSEEK_API_KEY and are never stored in this file.
 adapter: opencode
 executable: opencode
-model: dsapi/deepseek-v4-pro
+model: deepseek/deepseek-chat
 config_file: opencode.json
-timeout_seconds: 480
-workers: 4
-# Model API access is required.  Tool-network isolation is best-effort for the
-# subprocess backend; see docs/experiment_protocol.md.
-network_enabled: false
+argv:
+  - opencode
+  - run
+  - --model
+  - deepseek/deepseek-chat
+  - --format
+  - json
+  - --auto
+  - --dir
+  - "{repo}"
+  - "{prompt}"
+timeout_seconds: 1200
+workers: 1
+network_enabled: true
 # Native JSONL events are required to separate tool results from the final
 # answer; `text` output cannot produce a native trace.
 output_format: json
 scaffold: opencode
 scaffold_version: null
 # Recorded in every run so unsupported versions/formats are attributable.
-opencode_version: "doctor-verified"
+opencode_version: "1.17.18"
 opencode_event_format: "jsonl:type=text,part.text"
 credential_env_allowlist:
-  - OPENCODE_API_KEY
-  - DSAPI_API_KEY
+  - DEEPSEEK_API_KEY
 # P0-2: a live run fails before the agent starts when a declared credential is
 # absent from the environment.  Use "optional" only for a documented dry run.
 credential_policy: required
@@ -35,7 +40,7 @@ container_agent_executable: opencode
 container_agent_version: null
 # "none" blocks tool egress but also blocks the model API; use "bridge" for real
 # runs and report network separation as best-effort (see docs/experiment_protocol.md).
-container_network: none
+container_network: bridge
 inference:
   temperature: null
   max_output_tokens: null

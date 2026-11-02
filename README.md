@@ -518,25 +518,32 @@ The single skip is a Windows symlink-escape test that requires the host to allow
 
 ## 11. OpenCode
 
-`configs/opencode.yaml` configures the adapter:
+`configs/opencode.yaml`, `configs/opencode.glm.yaml`, and
+`configs/opencode.qwen.yaml` configure OpenCode as the shared agent framework
+while calling the DeepSeek, Zhipu GLM, and Alibaba Cloud DashScope APIs
+directly.  All three resolve the shared `configs/opencode.json` by relative
+path.
 
 ```yaml
 adapter: opencode
 executable: opencode
-model: <provider>/<model>          # placeholder; replace with the real model
-config_file: opencode.json          # resolved ONCE, relative to this YAML
+model: deepseek/deepseek-chat
+config_file: opencode.json         # resolved ONCE, relative to this YAML
 output_format: json                 # required for a native JSONL trace
-opencode_version: doctor-verified
+opencode_version: "1.17.18"
 opencode_event_format: "jsonl:type=text,part.text"
-credential_env_allowlist: [OPENCODE_API_KEY, DSAPI_API_KEY]
-timeout_seconds: 480
-workers: 4
+credential_env_allowlist: [DEEPSEEK_API_KEY]
+credential_policy: required
+timeout_seconds: 1200
+workers: 1
 ```
 
 The adapter:
 
 * resolves `config_file` **once**, relative to the agent YAML directory (so
   `opencode.json` means `configs/opencode.json`, never `configs/configs/...`);
+* forwards only the provider credential named by each agent YAML:
+  `DEEPSEEK_API_KEY`, `ZHIPU_API_KEY`, or `DASHSCOPE_API_KEY`;
 * runs `opencode run --model <model> --format json ...` in the isolated
   repository copy with the audit prompt as the final argument;
 * gives every run its own `HOME`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME`/
