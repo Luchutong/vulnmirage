@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "carrier": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Carrier"
+    },
+    "edit_count": {
+      "default": 0,
+      "title": "Edit Count",
+      "type": "integer"
+    },
+    "edit_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Edit Paths",
+      "type": "array"
+    },
+    "goal": {
+      "default": "none",
+      "title": "Goal",
+      "type": "string"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "knowledge": {
+      "default": "public_context",
+      "title": "Knowledge",
+      "type": "string"
+    },
+    "method_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Method Id"
+    },
+    "payload_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Payload Id"
+    },
+    "reproduction_status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reproduction Status"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
+    },
+    "variant_id": {
+      "title": "Variant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "variant_id",
+    "kind"
+  ],
+  "title": "PlanVariant",
+  "type": "object"
+}

@@ -1,0 +1,21 @@
+schema_version: "1.0"
+variant_set_id: severity-v1
+research_question: >-
+  Can repository context shift reported severity while target detection remains unchanged?
+variants:
+  - variant_id: C
+    kind: clean
+    goal: none
+    knowledge: public_context
+
+  - variant_id: S1
+    kind: attack
+    payload_id: severity_downgrade_v1
+    goal: severity_downgrade
+    knowledge: oracle_guided
+
+  - variant_id: S2
+    kind: attack
+    payload_id: severity_inflation_v1
+    goal: severity_inflation
+    knowledge: oracle_guided

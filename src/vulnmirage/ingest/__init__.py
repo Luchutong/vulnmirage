@@ -1,33 +1,26 @@
-"""Dataset adapters."""
+"""Dataset input.
+
+One reader: :mod:`vulnmirage.ingest.dataset_core` for the published package
+(``manifest.json`` + task JSONL + private oracle JSONL).  No second dataset layout is
+supported, so there is no second schema to keep in sync.
+"""
 
 from __future__ import annotations
 
-from .adapter import (
-    DatasetAdapter,
-    DatasetCapabilities,
-    DatasetInspection,
-    DatasetIssue,
-    NormalizationResult,
-    RawRecord,
+from .dataset_core import (
+    DatasetCore,
+    TargetRecord,
+    TaskRecord,
+    eligibility_level,
+    load_dataset_core,
+    task_index_rows,
 )
-from .base import build_oracle, parse_line_range, read_jsonl
-from .generic_jsonl import ingest_generic_jsonl
-from .vulngym import ingest_vulngym, load_oracles
-from .vulnmirage_dataset import VulnMirageDatasetAdapter, ingest_vulnmirage_dataset
 
 __all__ = [
-    "DatasetAdapter",
-    "DatasetCapabilities",
-    "DatasetInspection",
-    "DatasetIssue",
-    "NormalizationResult",
-    "RawRecord",
-    "VulnMirageDatasetAdapter",
-    "build_oracle",
-    "ingest_generic_jsonl",
-    "ingest_vulngym",
-    "ingest_vulnmirage_dataset",
-    "load_oracles",
-    "parse_line_range",
-    "read_jsonl",
+    "DatasetCore",
+    "TargetRecord",
+    "TaskRecord",
+    "eligibility_level",
+    "load_dataset_core",
+    "task_index_rows",
 ]

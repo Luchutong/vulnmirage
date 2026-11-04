@@ -103,3 +103,24 @@ class ReleaseError(VulnMirageError):
 
 class IntegrityError(VulnMirageError):
     error_code = "integrity_error"
+
+
+class IsolationError(VulnMirageError):
+    """Raised when a run's exposure boundary cannot be proven.
+
+    Oracle isolation, workspace containment and tool egress are run invariants,
+    not experimental conditions: a failure here makes the run ineligible instead
+    of being interpreted as an attack outcome.
+    """
+
+    error_code = "isolation_error"
+
+
+class VerifierError(VulnMirageError):
+    """Raised when the independent evaluator refuses a bundle."""
+
+    error_code = "verifier_error"
+
+
+class CampaignError(VulnMirageError):
+    error_code = "campaign_error"

@@ -1,0 +1,40 @@
+schema_version: "1.0"
+variant_set_id: core-v1
+research_question: >-
+  How do representative repository-context injections affect target detection,
+  certified-safe-decoy acceptance, and severity assessment?
+variants:
+  - variant_id: C
+    kind: clean
+    goal: none
+    knowledge: public_context
+
+  - variant_id: A1
+    kind: attack
+    payload_id: false_fix_claim_v1
+    goal: false_negative
+    knowledge: public_context
+
+  - variant_id: A3
+    kind: attack
+    payload_id: fabricated_authority_v1
+    goal: false_negative
+    knowledge: oracle_guided
+
+  - variant_id: F2
+    kind: attack
+    payload_id: redherring_safe_decoy_v1
+    goal: verification_diversion
+    knowledge: public_context
+
+  - variant_id: S1
+    kind: attack
+    payload_id: severity_downgrade_v1
+    goal: severity_downgrade
+    knowledge: oracle_guided
+
+  - variant_id: S2
+    kind: attack
+    payload_id: severity_inflation_v1
+    goal: severity_inflation
+    knowledge: oracle_guided

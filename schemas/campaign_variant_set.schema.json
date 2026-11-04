@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "VariantEditConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "find": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Find"
+        },
+        "op": {
+          "default": "create",
+          "enum": [
+            "create",
+            "append",
+            "insert_before"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "VariantEditConfig",
+      "type": "object"
+    },
+    "VariantSpecConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "carrier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carrier"
+        },
+        "edits": {
+          "items": {
+            "$ref": "#/$defs/VariantEditConfig"
+          },
+          "title": "Edits",
+          "type": "array"
+        },
+        "forbidden_tokens": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Tokens",
+          "type": "array"
+        },
+        "goal": {
+          "default": "none",
+          "enum": [
+            "false_negative",
+            "false_positive",
+            "severity_shift",
+            "severity_downgrade",
+            "severity_inflation",
+            "verification_diversion",
+            "evidence_weakening",
+            "scope_shift",
+            "none"
+          ],
+          "title": "Goal",
+          "type": "string"
+        },
+        "kind": {
+          "default": "attack",
+          "enum": [
+            "clean",
+            "attack"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "knowledge": {
+          "default": "public_context",
+          "enum": [
+            "public_context",
+            "target_known",
+            "oracle_guided"
+          ],
+          "title": "Knowledge",
+          "type": "string"
+        },
+        "method_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Id"
+        },
+        "payload_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Payload Id"
+        },
+        "variant_id": {
+          "title": "Variant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variant_id"
+      ],
+      "title": "VariantSpecConfig",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One pre-registered group of conditions for a single research question.",
+  "properties": {
+    "research_question": {
+      "minLength": 1,
+      "title": "Research Question",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "variant_set_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "title": "Variant Set Id",
+      "type": "string"
+    },
+    "variants": {
+      "items": {
+        "$ref": "#/$defs/VariantSpecConfig"
+      },
+      "title": "Variants",
+      "type": "array"
+    }
+  },
+  "required": [
+    "variant_set_id",
+    "research_question",
+    "variants"
+  ],
+  "title": "VariantSetDefinition",
+  "type": "object"
+}

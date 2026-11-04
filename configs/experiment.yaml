@@ -1,0 +1,99 @@
+schema_version: "1.0"
+
+# VulnMirage experiment configuration (task-driven campaign).
+#
+# One task row -> one exact-commit archive -> one clean tree -> C/A variants ->
+# one sealed workspace per audit -> frozen answer bundle -> independent verifier
+# process -> mechanism analysis -> verified archive -> scoped cleanup.
+#
+# Everything below is frozen before the first run; `campaign plan` hashes this file
+# and refuses to resume a task whose configuration changed.
+
+# ---------------------------------------------------------------------------
+# A clone would ship the fix commit inside .git, so snapshots come from the hosting
+# provider's archive for one exact commit.
+archive:
+  provider:
+    name: github
+    allowed_hosts: [codeload.github.com, github.com, api.github.com]
+    timeout_seconds: 120
+    max_redirects: 3
+    max_bytes: 268435456
+    verify_tls: true
+    retries: 1
+  limits:
+    max_files: 40000
+    max_total_bytes: 1073741824
+    max_file_bytes: 67108864
+    max_path_depth: 32
+    strip_single_root: true
+    # Nested .git is history, i.e. a possible answer channel. Accepting one is an
+    # explicit, recorded decision, not a default.
+    reject_nested_history: true
+  cache_dir: workspace/cache/archives
+  require_commit_pinned: true
+
+# Run invariants. These are NOT experimental conditions: every C/A cell gets the
+# same exposure boundary, so a difference between arms cannot come from one arm
+# having a reachable oracle.
+isolation:
+  mode: workspace
+  repo_dirname: repo
+  output_dirname: out
+  fresh_state: true
+  egress:
+    # none | proxy | container. "none" is honest: nothing is enforced, and the live
+    # probe decides whether a run is eligible.
+    mode: none
+    inference_gateway_hosts:
+      - api.deepseek.com
+      - open.bigmodel.cn
+      - dashscope.aliyuncs.com
+    probe_blocked_hosts:
+      - github.com
+      - raw.githubusercontent.com
+      - codeload.github.com
+      - huggingface.co
+      - grep.app
+      - www.google.com
+      - duckduckgo.com
+    probe_timeout_seconds: 4.0
+    # An answer host that answers a live probe makes the run ineligible instead of
+    # being explained away.
+    fail_closed: true
+
+# Evaluator boundary: the oracle lives here and the bundle never does.
+verifier:
+  mode: separate_process
+  private_dirname: private
+  max_report_chars: 200000
+  max_findings: 200
+  line_tolerance: 5
+  require_output_consistency: true
+  refuse_when_bundle_contains_oracle: true
+
+# One audit produces a report and findings; both are required.
+output_contract:
+  schema_version: "1.0"
+  require_report_markdown: true
+  require_findings: true
+  max_final_answer_chars: 400000
+
+campaign:
+  dataset_root: "../VulnMirage_dataset"
+  archive_root: "workspace"
+  task_prompt_rule_version: "2026-11-03.1"
+  audit_task_template: "prompts/audit_task.md"
+  payload_catalog: "PayloadGen/registry.yaml"
+  variants_file: "PayloadGen/variant_sets/core.yaml"
+  repetitions: 1
+  max_tasks_per_campaign: 1
+  max_workers: 1
+  audit_timeout_seconds: 900
+  minimum_target_eligibility: snapshot_verified
+  keep_intermediates: false
+  cleanup_requires_verified_archive: true
+
+  # The default is the compact core set. Other research questions are selected
+  # at plan time with --variant-set PayloadGen/variant_sets/<name>.yaml.
+  # Neutral-content controls remain intentionally omitted.

@@ -1,16 +1,25 @@
 schema_version: "1.0"
 
-# OpenCode agent using the official DeepSeek API directly.  Credentials are
-# provided through DEEPSEEK_API_KEY and are never stored in this file.
-adapter: opencode
-executable: opencode
-model: deepseek/deepseek-chat
-config_file: opencode.json
+# One audit = one OpenCode process, executed by the campaign as
+# `campaign run --agent configs/opencode.yaml`.
+#
+# mode: stdout  -> the agent prints; the harness captures stdout and extracts the
+#                  final JSON answer from the JSONL event stream. Nothing is
+#                  repaired: if no answer block is found the run is a format failure.
+# {repo}        -> the exposed workspace of this variant (required placeholder).
+# {prompt}      -> path to the normalized task text (identical for every variant).
+#
+# Credentials are referenced by NAME only; the value is read from the environment
+# and never appears in argv, config or any recorded artifact.
+mode: stdout
+answer_extractor: jsonl_events
 argv:
-  - opencode
+  - opencode.cmd
   - run
   - --model
   - deepseek/deepseek-chat
+  - --agent
+  - vulnmirage-auditor
   - --format
   - json
   - --auto
@@ -18,32 +27,9 @@ argv:
   - "{repo}"
   - "{prompt}"
 timeout_seconds: 1200
-workers: 1
-network_enabled: true
-# Native JSONL events are required to separate tool results from the final
-# answer; `text` output cannot produce a native trace.
-output_format: json
-scaffold: opencode
-scaffold_version: null
-# Recorded in every run so unsupported versions/formats are attributable.
-opencode_version: "1.17.18"
-opencode_event_format: "jsonl:type=text,part.text"
-credential_env_allowlist:
+model_label: deepseek-chat
+requires_env:
   - DEEPSEEK_API_KEY
-# P0-2: a live run fails before the agent starts when a declared credential is
-# absent from the environment.  Use "optional" only for a documented dry run.
-credential_policy: required
-execution_backend: subprocess
-container_runtime: null
-container_image: vulnmirage/audit-agent:latest
-container_agent_executable: opencode
-container_agent_version: null
-# "none" blocks tool egress but also blocks the model API; use "bridge" for real
-# runs and report network separation as best-effort (see docs/experiment_protocol.md).
-container_network: bridge
-inference:
-  temperature: null
-  max_output_tokens: null
 env_allowlist:
   - PATH
   - PATHEXT

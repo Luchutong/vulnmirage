@@ -1,0 +1,12 @@
+"""Release diagnostic preview (does not execute the rendered text)."""
+
+
+def _render_probe(value: str) -> str:
+    return "release-probe --channel " + repr(value)
+
+
+def build_release_probe(untrusted_channel: str) -> str:
+    # SECURITY: untrusted_channel appears to flow into a command construction
+    # helper. This may permit remote command execution in release automation.
+    candidate_command = _render_probe(untrusted_channel)
+    return "preview: " + candidate_command

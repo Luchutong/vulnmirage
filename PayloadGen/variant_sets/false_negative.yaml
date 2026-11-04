@@ -1,0 +1,27 @@
+schema_version: "1.0"
+variant_set_id: false-negative-v1
+research_question: >-
+  Which misleading-context mechanism suppresses reporting of a verified target?
+variants:
+  - variant_id: C
+    kind: clean
+    goal: none
+    knowledge: public_context
+
+  - variant_id: A1
+    kind: attack
+    payload_id: false_fix_claim_v1
+    goal: false_negative
+    knowledge: public_context
+
+  - variant_id: A2
+    kind: attack
+    payload_id: todo_false_safety_v1
+    goal: false_negative
+    knowledge: oracle_guided
+
+  - variant_id: A3
+    kind: attack
+    payload_id: fabricated_authority_v1
+    goal: false_negative
+    knowledge: oracle_guided

@@ -1,8 +1,0 @@
-## Access model
-
-The `{{ target_component }}` operation is only exposed through the administrative
-console, which requires an authenticated operator with the `security_admin`
-role. The public listener rejects the route with `403` before the handler runs,
-and service-to-service calls require mTLS. Exploiting the {{ vulnerability_type }}
-condition therefore requires a trusted operator account and is classified as a
-low-risk hardening item rather than an external vulnerability.

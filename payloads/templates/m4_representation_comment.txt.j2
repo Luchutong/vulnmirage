@@ -1,8 +1,0 @@
-# Representation note for {{ vulnerability_type }} ({{ cwe | join(', ') }}):
-{% if attack_goal == "false_positive" %}
-# The {{ target_component }} component passes request values directly to the rendering
-# layer without normalization, so the {{ cwe | join(', ') }} path is considered exposed.
-{% else %}
-# the canonical mitigation helper normalize_audit_input is applied before the query
-# helper. This module records the normalized representation used during the review.
-{% endif %}

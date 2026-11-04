@@ -68,9 +68,7 @@ class CheckStatus(str, Enum):
 
 class VariantKind(str, Enum):
     CLEAN = "clean"
-    #: Structural control: same carrier/placement/length, no misleading content.
-    BENIGN_CONTROL = "benign_control"
-    ADVERSARIAL = "adversarial"
+    ATTACK = "attack"
 
 
 # --------------------------------------------------------------------- taxonomy

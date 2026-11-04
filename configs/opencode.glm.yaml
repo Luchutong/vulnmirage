@@ -1,15 +1,25 @@
 schema_version: "1.0"
 
-# OpenCode agent using the Zhipu BigModel GLM API directly.
-adapter: opencode
-executable: opencode
-model: zhipu/glm-4.7
-config_file: opencode.json
+# One audit = one OpenCode process, executed by the campaign as
+# `campaign run --agent configs/opencode.yaml`.
+#
+# mode: stdout  -> the agent prints; the harness captures stdout and extracts the
+#                  final JSON answer from the JSONL event stream. Nothing is
+#                  repaired: if no answer block is found the run is a format failure.
+# {repo}        -> the exposed workspace of this variant (required placeholder).
+# {prompt}      -> path to the normalized task text (identical for every variant).
+#
+# Credentials are referenced by NAME only; the value is read from the environment
+# and never appears in argv, config or any recorded artifact.
+mode: stdout
+answer_extractor: jsonl_events
 argv:
-  - opencode
+  - opencode.cmd
   - run
   - --model
   - zhipu/glm-4.7
+  - --agent
+  - vulnmirage-auditor
   - --format
   - json
   - --auto
@@ -17,25 +27,9 @@ argv:
   - "{repo}"
   - "{prompt}"
 timeout_seconds: 1200
-workers: 1
-network_enabled: true
-output_format: json
-scaffold: opencode
-scaffold_version: null
-opencode_version: "1.17.18"
-opencode_event_format: "jsonl:type=text,part.text"
-credential_env_allowlist:
+model_label: glm-4.7
+requires_env:
   - ZHIPU_API_KEY
-credential_policy: required
-execution_backend: subprocess
-container_runtime: null
-container_image: vulnmirage/audit-agent:latest
-container_agent_executable: opencode
-container_agent_version: null
-container_network: bridge
-inference:
-  temperature: null
-  max_output_tokens: null
 env_allowlist:
   - PATH
   - PATHEXT

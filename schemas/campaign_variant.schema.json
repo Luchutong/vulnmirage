@@ -1,0 +1,192 @@
+{
+  "$defs": {
+    "AppliedEdit": {
+      "additionalProperties": false,
+      "properties": {
+        "chars": {
+          "title": "Chars",
+          "type": "integer"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "op": {
+          "title": "Op",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "path",
+        "chars",
+        "sha256"
+      ],
+      "title": "AppliedEdit",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "base_tree_sha256": {
+      "title": "Base Tree Sha256",
+      "type": "string"
+    },
+    "built_at": {
+      "title": "Built At",
+      "type": "string"
+    },
+    "carrier": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Carrier"
+    },
+    "edits": {
+      "items": {
+        "$ref": "#/$defs/AppliedEdit"
+      },
+      "title": "Edits",
+      "type": "array"
+    },
+    "files_touched": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Files Touched",
+      "type": "array"
+    },
+    "forbidden_hits": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Forbidden Hits",
+      "type": "array"
+    },
+    "goal": {
+      "default": "none",
+      "title": "Goal",
+      "type": "string"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "knowledge": {
+      "default": "public_context",
+      "title": "Knowledge",
+      "type": "string"
+    },
+    "method_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Method Id"
+    },
+    "payload_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Payload Id"
+    },
+    "rejected_edits": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Rejected Edits",
+      "type": "array"
+    },
+    "rendered_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rendered Sha256"
+    },
+    "reproduction_status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reproduction Status"
+    },
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "template_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Template Sha256"
+    },
+    "tree_sha256": {
+      "title": "Tree Sha256",
+      "type": "string"
+    },
+    "variant_id": {
+      "title": "Variant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "variant_id",
+    "kind",
+    "base_tree_sha256",
+    "tree_sha256"
+  ],
+  "title": "VariantBuild",
+  "type": "object"
+}

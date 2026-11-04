@@ -8,7 +8,6 @@ intended root.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from .errors import UnsafePathError
@@ -100,91 +99,3 @@ def ensure_within(root: Path, candidate: Path, *, must_exist: bool = False) -> P
             details={"path": str(candidate), "root": str(root)},
         )
     return candidate
-
-
-def posix_relative(path: Path, root: Path) -> str:
-    return Path(path).resolve().relative_to(Path(root).resolve()).as_posix()
-
-
-def windows_long_path(path: Path) -> str:
-    """Return a path string usable with Windows APIs when >260 chars.
-
-    ``\\\\?\\`` prefixes require an absolute, normalized path.
-    """
-    text = str(Path(path).resolve())
-    if os.name == "nt" and len(text) >= 240 and not text.startswith("\\\\?\\"):
-        return "\\\\?\\" + text
-    return text
-
-
-@dataclass(frozen=True)
-class WorkspacePaths:
-    root: Path
-    cache: Path
-    normalized: Path
-    worktrees: Path
-    instances: Path
-    runs: Path
-    reports: Path
-    logs: Path
-    releases: Path
-    quarantine: Path
-
-    @classmethod
-    def from_config(cls, workspace_root: str | Path, repo_cache: str | Path) -> "WorkspacePaths":
-        root = Path(workspace_root).expanduser()
-        if not root.is_absolute():
-            root = (Path.cwd() / root).resolve()
-        cache = Path(repo_cache).expanduser()
-        if not cache.is_absolute():
-            cache = (Path.cwd() / cache).resolve()
-        return cls(
-            root=root,
-            cache=cache,
-            normalized=root / "normalized",
-            worktrees=root / "worktrees",
-            instances=root / "instances",
-            runs=root / "runs",
-            reports=root / "reports",
-            logs=root / "logs",
-            releases=root / "releases",
-            quarantine=root / "quarantine",
-        )
-
-    def ensure_layout(self) -> None:
-        for path in (
-            self.root,
-            self.cache,
-            self.normalized,
-            self.worktrees,
-            self.instances,
-            self.runs,
-            self.reports,
-            self.logs,
-            self.releases,
-            self.quarantine,
-        ):
-            path.mkdir(parents=True, exist_ok=True)
-
-    def instance_dir(self, instance_id: str) -> Path:
-        return safe_join(self.instances, instance_id)
-
-    def instance_worktree(self, instance_id: str) -> Path:
-        return self.worktrees / instance_id / "repo"
-
-    def run_dir(self, run_id: str) -> Path:
-        return safe_join(self.runs, run_id)
-
-    def as_dict(self) -> dict[str, str]:
-        return {
-            "root": self.root.as_posix(),
-            "cache": self.cache.as_posix(),
-            "normalized": self.normalized.as_posix(),
-            "worktrees": self.worktrees.as_posix(),
-            "instances": self.instances.as_posix(),
-            "runs": self.runs.as_posix(),
-            "reports": self.reports.as_posix(),
-            "logs": self.logs.as_posix(),
-            "releases": self.releases.as_posix(),
-            "quarantine": self.quarantine.as_posix(),
-        }

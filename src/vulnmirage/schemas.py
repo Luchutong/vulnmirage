@@ -1,96 +1,86 @@
-"""Export and validate publishable JSON Schemas for all data contracts."""
+"""Export the JSON Schemas of every data contract this build still produces.
+
+Two groups:
+
+* **answer contract** -- what an agent may return, and what the harness/verifier
+  write about it (``finding``, ``audit_output``, ``agent_finding``, ``code_location``,
+  ``output_consistency``, ``verifier_*``);
+* **campaign contract** -- plan, per-task state, manifests, variants, isolation
+  attestation, leakage controls and the mechanism artifacts.
+
+Schemas are generated from the pydantic models, never hand-edited; ``vulnmirage
+schemas`` rewrites them and reports the digest of each file.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 from .hashing import atomic_write_json
-from .models import (
-    AgentFinding,
-    AgentRun,
-    AttackPlan,
-    BaselineAuditContext,
-    BenchmarkInstance,
-    CandidateFile,
-    CandidateSelfCheck,
-    CanonicalVulnerabilityOracle,
-    DecoyRecord,
-    EditApplication,
-    EvaluationEligibility,
-    EvidenceContract,
-    EvidenceExpression,
-    EvidencePredicate,
-    FindingEnvelope,
-    GeneratedCandidate,
-    InstanceGroup,
-    ManipulationSpec,
-    PatchOperation,
-    PredicateResult,
-    ReferenceAudit,
-    RepositoryContext,
-    RepositoryFacts,
-    SafeTargetContract,
-    SeverityRecord,
-    SeveritySource,
-    UnifiedEvent,
-    ValidationReport,
-    VariantGroup,
-    VerificationAssessment,
-)
+from .models import AgentFinding, AuditReportEnvelope, CodeLocation, FindingEnvelope
 
 SCHEMA_FILES: dict[str, Any] = {
-    "oracle.schema.json": CanonicalVulnerabilityOracle,
-    "manipulation.schema.json": ManipulationSpec,
-    "decoy.schema.json": DecoyRecord,
-    "validation.schema.json": ValidationReport,
     "finding.schema.json": FindingEnvelope,
+    "audit_output.schema.json": AuditReportEnvelope,
     "agent_finding.schema.json": AgentFinding,
-    "run.schema.json": AgentRun,
-    "instance.schema.json": BenchmarkInstance,
-    "instance_group.schema.json": InstanceGroup,
-    "variant_group.schema.json": VariantGroup,
-    "event.schema.json": UnifiedEvent,
-    "evidence_contract.schema.json": EvidenceContract,
-    "evidence_expression.schema.json": EvidenceExpression,
-    "evidence_predicate.schema.json": EvidencePredicate,
-    "predicate_result.schema.json": PredicateResult,
-    "verification_assessment.schema.json": VerificationAssessment,
-    "safe_target.schema.json": SafeTargetContract,
-    "evaluation_eligibility.schema.json": EvaluationEligibility,
-    "severity.schema.json": SeverityRecord,
-    "severity_source.schema.json": SeveritySource,
-    "attack_plan.schema.json": AttackPlan,
-    "repository_context.schema.json": RepositoryContext,
-    "generated_candidate.schema.json": GeneratedCandidate,
-    "candidate_file.schema.json": CandidateFile,
-    "candidate_self_check.schema.json": CandidateSelfCheck,
-    "repository_facts.schema.json": RepositoryFacts,
-    "reference_audit.schema.json": ReferenceAudit,
-    "baseline_audit_context.schema.json": BaselineAuditContext,
-    "patch_operation.schema.json": PatchOperation,
-    "edit_application.schema.json": EditApplication,
+    "code_location.schema.json": CodeLocation,
 }
 
 
-def dataset_schema_files() -> dict[str, Any]:
-    """Dataset adapter models are imported lazily to avoid import cycles."""
-    from .ingest.adapter import (
-        DatasetCapabilities,
-        DatasetInspection,
-        DatasetIssue,
-        NormalizationResult,
+def benchmark_schema_files() -> dict[str, Any]:
+    """Campaign-side contracts are imported lazily to keep CLI start-up cheap."""
+    from .campaign.pipeline import (
+        ArtifactEntry,
+        RunRecord,
+        SourceManifest,
+        TaskManifest,
+        VariantFreeze,
     )
-    from .ingest.vulnmirage_dataset import DatasetManifest
+    from .campaign.plan import PlanDoc, PlanTask, PlanVariant, VariantSetDefinition
+    from .campaign.state import TaskState
+    from .campaign.variants import VariantBuild
+    from .evaluation.parser import OutputConsistency
+    from .isolation.attestation import IsolationAttestation
+    from .isolation.channels import LeakageControlReport
+    from .isolation.network import EgressProbeResult
+    from .mechanism.analysis import ComparisonReport, ExposureReport, MechanismReport
+    from .verifier.bundle import BundleManifest
+    from .verifier.service import RunScore, VerifierAttestation
+    from .verifier.targets import TargetSet
+    from .verifier.untrusted import UntrustedInput
 
     return {
-        "dataset_manifest.schema.json": DatasetManifest,
-        "dataset_capabilities.schema.json": DatasetCapabilities,
-        "dataset_issues.schema.json": DatasetIssue,
-        "dataset_inspection.schema.json": DatasetInspection,
-        "dataset_normalization.schema.json": NormalizationResult,
+        "campaign_plan.schema.json": PlanDoc,
+        "campaign_plan_task.schema.json": PlanTask,
+        "campaign_plan_variant.schema.json": PlanVariant,
+        "campaign_variant_set.schema.json": VariantSetDefinition,
+        "campaign_state.schema.json": TaskState,
+        "campaign_source_manifest.schema.json": SourceManifest,
+        "campaign_task_manifest.schema.json": TaskManifest,
+        "campaign_variant.schema.json": VariantBuild,
+        "campaign_variants_frozen.schema.json": VariantFreeze,
+        "campaign_run_record.schema.json": RunRecord,
+        "campaign_artifact_entry.schema.json": ArtifactEntry,
+        "isolation_attestation.schema.json": IsolationAttestation,
+        "isolation_egress_probe.schema.json": EgressProbeResult,
+        "leakage_controls.schema.json": LeakageControlReport,
+        "verifier_bundle.schema.json": BundleManifest,
+        "verifier_targets.schema.json": TargetSet,
+        "verifier_score.schema.json": RunScore,
+        "verifier_attestation.schema.json": VerifierAttestation,
+        "verifier_untrusted_input.schema.json": UntrustedInput,
+        "output_consistency.schema.json": OutputConsistency,
+        "exposure_report.schema.json": ExposureReport,
+        "trajectory_comparison.schema.json": ComparisonReport,
+        "mechanism_assessment.schema.json": MechanismReport,
     }
+
+
+def all_schema_files() -> dict[str, Any]:
+    return {**SCHEMA_FILES, **benchmark_schema_files()}
 
 
 def build_schema(model: Any, *, title: str | None = None) -> dict[str, Any]:
@@ -101,31 +91,51 @@ def build_schema(model: Any, *, title: str | None = None) -> dict[str, Any]:
 
 
 def generate_schemas(output_dir: str | Path) -> dict[str, str]:
+    """Write every schema and return ``filename -> sha256``."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     digests: dict[str, str] = {}
-    import hashlib
-
-    files = {**SCHEMA_FILES, **dataset_schema_files()}
-    for filename, model in files.items():
-        schema = build_schema(model)
+    for filename, model in all_schema_files().items():
         path = out / filename
-        atomic_write_json(path, schema)
+        atomic_write_json(path, build_schema(model))
         digests[filename] = hashlib.sha256(path.read_bytes()).hexdigest()
     return digests
 
 
 def schema_index(output_dir: str | Path) -> dict[str, Any]:
+    """Report which declared schemas exist and whether they are current."""
     out = Path(output_dir)
-    entries = {}
-    files = {**SCHEMA_FILES, **dataset_schema_files()}
-    for filename in files:
+    files = all_schema_files()
+    entries: dict[str, Any] = {}
+    stale: list[str] = []
+    missing: list[str] = []
+    for filename, model in files.items():
         path = out / filename
+        if not path.is_file():
+            entries[filename] = {"exists": False, "sha256": None, "current": False}
+            missing.append(filename)
+            continue
+        expected = hashlib.sha256(
+            (json.dumps(build_schema(model), indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode(
+                "utf-8"
+            )
+        ).hexdigest()
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
         entries[filename] = {
-            "exists": path.exists(),
-            "sha256": __import__("hashlib").sha256(path.read_bytes()).hexdigest() if path.exists() else None,
+            "exists": True,
+            "sha256": actual,
+            "current": actual == expected,
         }
-    return {"schema_version": "2.0", "directory": str(out), "schemas": entries}
+        if actual != expected:
+            stale.append(filename)
+    return {
+        "schema_version": "3.0",
+        "directory": out.as_posix(),
+        "count": len(files),
+        "missing": missing,
+        "stale": stale,
+        "schemas": entries,
+    }
 
 
 def load_schema(name: str, directory: str | Path = "schemas") -> dict[str, Any]:
@@ -133,3 +143,14 @@ def load_schema(name: str, directory: str | Path = "schemas") -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(path)
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+__all__ = [
+    "SCHEMA_FILES",
+    "all_schema_files",
+    "benchmark_schema_files",
+    "build_schema",
+    "generate_schemas",
+    "load_schema",
+    "schema_index",
+]

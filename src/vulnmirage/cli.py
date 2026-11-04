@@ -1,8 +1,21 @@
 """VulnMirage command-line interface.
 
-All commands return machine-readable JSON on stdout and use a non-zero exit
-code on failure.  Human-readable diagnostics are emitted as structured JSON
-logs on stderr.
+Every command prints machine-readable JSON on stdout and returns a non-zero exit
+code on failure; diagnostics go to stderr as structured JSON.
+
+The command surface is the campaign flow only::
+
+    doctor                      check configuration, dataset, egress and executor
+    schemas                     regenerate the JSON Schemas of every contract
+    ingest dataset-core         read the published package and verify its digests
+    campaign plan               freeze the plan (offline, no download, no model call)
+    campaign run|resume         execute one task / continue a plan
+    campaign analyze            recompute mechanism artifacts from stored runs
+    campaign verify-archive     recompute every archived artifact hash
+    campaign status             show per-task phase state
+
+The evaluator has its own entry point, so the oracle is never loaded by the process
+that ran the agent: ``python -m vulnmirage.verifier``.
 """
 
 from __future__ import annotations
@@ -15,8 +28,8 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .config import LoadedConfig, load_config
-from .errors import VulnMirageError
+from .config import LoadedConfig, load_config, with_variant_set
+from .errors import ConfigError, VulnMirageError
 from .logging import configure_logging, get_logger, redact as redact_json
 from .paths import project_root
 
@@ -24,10 +37,10 @@ _LOG = get_logger("cli")
 
 
 def default_config_path() -> Path:
-    local = Path.cwd() / "configs" / "default.yaml"
+    local = Path.cwd() / "configs" / "experiment.yaml"
     if local.exists():
         return local
-    return project_root() / "configs" / "default.yaml"
+    return project_root() / "configs" / "experiment.yaml"
 
 
 def _emit(payload: Any) -> None:
@@ -39,13 +52,15 @@ def _load_config(path: str | None) -> LoadedConfig:
     return load_config(source)
 
 
+# ------------------------------------------------------------------------ doctor
 def cmd_doctor(args: argparse.Namespace) -> dict[str, Any]:
     from .diagnostics import run_doctor
 
     loaded = _load_config(args.config)
-    return run_doctor(loaded, agent_path=args.agent)
+    return run_doctor(loaded, agent_path=Path(args.agent) if args.agent else None)
 
 
+# ----------------------------------------------------------------------- schemas
 def cmd_schemas(args: argparse.Namespace) -> dict[str, Any]:
     from .schemas import generate_schemas, schema_index
 
@@ -53,571 +68,242 @@ def cmd_schemas(args: argparse.Namespace) -> dict[str, Any]:
     if not output.is_absolute():
         output = (Path.cwd() / output).resolve()
     digests = generate_schemas(output)
-    return {"ok": True, "output": str(output), "schemas": digests, **schema_index(output)}
+    return {"ok": True, "output": output.as_posix(), "schemas": digests, **schema_index(output)}
 
 
-def cmd_ingest_vulngym(args: argparse.Namespace) -> dict[str, Any]:
-    from .ingest.vulngym import ingest_vulngym
+# ------------------------------------------------------------------------ ingest
+def cmd_ingest_dataset_core(args: argparse.Namespace) -> dict[str, Any]:
+    from .ingest.dataset_core import load_dataset_core, task_index_rows
 
-    return ingest_vulngym(
-        reports_path=Path(args.reports),
-        entries_path=Path(args.entries),
-        output_dir=Path(args.output),
-        allow_unverified=args.allow_unverified,
-        limit=args.limit,
-        dataset_name=args.dataset_name,
+    core = load_dataset_core(
+        Path(args.root),
+        tasks_file=args.tasks,
+        oracle_file=args.oracle,
+        strict=not args.skip_integrity,
     )
+    integrity = core.verify_file_hashes()
+    return {
+        "ok": integrity["ok"],
+        "summary": core.summary(),
+        "integrity": integrity,
+        "tasks": task_index_rows(core) if args.with_tasks else None,
+    }
 
 
-def cmd_ingest_generic(args: argparse.Namespace) -> dict[str, Any]:
-    from .ingest.generic_jsonl import ingest_generic_jsonl
-
-    return ingest_generic_jsonl(
-        input_path=Path(args.input),
-        output_dir=Path(args.output),
-        source_dataset=args.dataset_name,
-        allow_unverified=args.allow_unverified,
-        limit=args.limit,
-    )
-
-
-def cmd_ingest_repovuln(args: argparse.Namespace) -> dict[str, Any]:
-    from .ingest.repovuln import ingest_repovuln_xlsx
-
-    return ingest_repovuln_xlsx(
-        workbook_path=Path(args.workbook),
-        output_dir=Path(args.output),
-        sheet=args.sheet,
-        data_scope=args.data_scope,
-        limit_groups=args.limit_groups,
-        dataset_name=args.dataset_name,
-    )
-
-
-def cmd_ingest_vulnmirage(args: argparse.Namespace) -> dict[str, Any]:
-    from .ingest.vulnmirage_dataset import (
-        VulnMirageDatasetAdapter,
-        ingest_vulnmirage_dataset,
-    )
-
-    if args.inspect_only:
-        adapter = VulnMirageDatasetAdapter(
-            Path(args.manifest), Path(args.cases), dataset_name=args.dataset_name
-        )
-        inspection = adapter.inspect()
-        return {
-            "ok": not any(issue.blocking for issue in inspection.issues),
-            "inspect_only": True,
-            **inspection.model_dump(mode="json"),
-        }
-    if not args.output:
-        from .errors import ConfigError
-
-        raise ConfigError("ingest vulnmirage requires --output unless --inspect-only is used")
-    return ingest_vulnmirage_dataset(
-        manifest_path=Path(args.manifest),
-        cases_path=Path(args.cases),
-        output_dir=Path(args.output),
-        dataset_name=args.dataset_name,
-        limit=args.limit,
-        strict=not args.allow_invalid,
-    )
-
-
-def cmd_optimize_payloads(args: argparse.Namespace) -> dict[str, Any]:
-    from .generation.feedback import optimize_payloads
+# ---------------------------------------------------------------------- campaign
+def _runner(args: argparse.Namespace):
+    from .campaign.executor import NullExecutor, build_executor
+    from .campaign.pipeline import CampaignRunner
+    from .campaign.plan import load_plan
 
     loaded = _load_config(args.config)
-    return optimize_payloads(
-        loaded=loaded,
-        release_dir=Path(args.release),
-        agent_config_path=Path(args.agent),
-        generations=args.generations,
-        population=args.population,
-        output_path=Path(args.output),
-        seed=args.seed,
-        max_queries=args.max_queries,
-        max_llm_calls=args.max_llm_calls,
-        token_budget=args.token_budget,
-        rewrite_enabled=args.rewrite,
+    plan = load_plan(Path(args.plan)) if getattr(args, "plan", None) else None
+    if plan is not None and plan.variant_set_file:
+        loaded = with_variant_set(loaded, plan.variant_set_file)
+    dataset_root = (
+        Path(args.dataset)
+        if getattr(args, "dataset", None)
+        else (Path(plan.dataset_root) if plan else None)
+    )
+    archive_root = (
+        Path(args.workspace)
+        if getattr(args, "workspace", None)
+        else (Path(plan.archive_root) if plan else None)
     )
 
+    executor = NullExecutor()
+    model_label = getattr(args, "model_label", None)
+    agent_path = getattr(args, "agent", None)
+    if agent_path:
+        from .config import load_agent_config
 
-def cmd_reference_verify(args: argparse.Namespace) -> dict[str, Any]:
-    from .generation.baseline import verify_reference_report
+        agent = load_agent_config(Path(agent_path))
+        missing = agent.config.missing_env()
+        if missing:
+            raise ConfigError(
+                "the agent declares credentials that are not set in this environment",
+                details={"missing": sorted(missing), "path": str(agent_path)},
+            )
+        executor = build_executor(agent.config)
+        model_label = model_label or agent.config.model_label
 
-    loaded = _load_config(args.config)
-    return verify_reference_report(
-        loaded=loaded,
-        oracle_path=Path(args.oracle),
-        report_path=Path(args.report),
-        metadata_path=Path(args.metadata) if args.metadata else None,
-        output_dir=Path(args.output) if args.output else None,
-    )
-
-
-def cmd_materialize(args: argparse.Namespace) -> dict[str, Any]:
-    from .repository.materialize import materialize_oracle_file
-
-    loaded = _load_config(args.config)
-    return materialize_oracle_file(
-        loaded=loaded,
-        oracle_path=Path(args.oracle),
-        force=args.force,
-        repo_override=args.repo_url,
-        fetch=args.fetch,
-    )
-
-
-def cmd_generate(args: argparse.Namespace) -> dict[str, Any]:
-    from .generation.candidates import generate_candidates_for_oracle
-    from .generation.pipeline import generate_for_oracle
-
-    loaded = _load_config(args.config)
-    candidates = args.candidates
-    if candidates is None:
-        candidates = loaded.config.generation.candidates_per_strategy
-    # Multi-target oracles are never collapsed to one silently: the candidate
-    # driver iterates single-target variants unless the caller names a target.
-    if not args.target_vulnerability_id:
-        return generate_candidates_for_oracle(
-            loaded=loaded,
-            oracle_path=Path(args.oracle),
-            tiers=args.tiers,
-            goals=args.goals,
-            seed=args.seed,
-            force=args.force,
-            resume=args.resume,
-            split=args.split,
-            max_variants=args.max_variants,
-            candidates_per_strategy=max(1, candidates or 1),
-            deduplication_threshold=args.dedup_threshold,
-            target_vulnerability_ids=args.target_vulnerability_ids,
-        )
-    if candidates and candidates > 1:
-        return generate_candidates_for_oracle(
-            loaded=loaded,
-            oracle_path=Path(args.oracle),
-            tiers=args.tiers,
-            goals=args.goals,
-            seed=args.seed,
-            force=args.force,
-            resume=args.resume,
-            split=args.split,
-            max_variants=args.max_variants,
-            candidates_per_strategy=candidates,
-            deduplication_threshold=args.dedup_threshold,
-            target_vulnerability_id=args.target_vulnerability_id,
-        )
-    return generate_for_oracle(
-        loaded=loaded,
-        oracle_path=Path(args.oracle),
-        tiers=args.tiers,
-        goals=args.goals,
-        seed=args.seed,
-        force=args.force,
-        resume=args.resume,
-        split=args.split,
-        max_variants=args.max_variants,
-        candidate_index=0,
-        target_vulnerability_id=args.target_vulnerability_id,
-    )
-
-
-def cmd_validate(args: argparse.Namespace) -> dict[str, Any]:
-    from .validation.pipeline import validate_instance
-
-    loaded = _load_config(args.config)
-    return validate_instance(
-        loaded=loaded,
-        instance_id=args.instance,
-        profile=args.profile,
-        clean_instance_id=args.clean_instance,
-    )
-
-
-def cmd_export(args: argparse.Namespace) -> dict[str, Any]:
-    from .export.bundle import export_release
-
-    loaded = _load_config(args.config)
-    instances = Path(args.instances) if args.instances else loaded.paths.instances
-    output = Path(args.output) if args.output else loaded.paths.releases / "v0.1"
-    return export_release(
-        loaded=loaded,
-        instances_dir=instances,
-        output_dir=output,
-        only_release_eligible=not args.include_rejected,
-        release_name=args.name,
-        release_version=args.release_version,
-        use_selection_manifest=not args.all_instances,
-    )
-
-
-def cmd_run(args: argparse.Namespace) -> dict[str, Any]:
-    from .harness.runner import run_release
-
-    loaded = _load_config(args.config)
-    return run_release(
-        loaded=loaded,
-        release_dir=Path(args.release),
-        agent_config_path=Path(args.agent),
-        repetitions=args.repetitions,
-        workers=args.workers,
-        instance_ids=args.instance,
-        limit=args.limit,
-        resume=args.resume,
-        defense_id=getattr(args, "defense", None),
-    )
-
-
-def cmd_run_matrix(args: argparse.Namespace) -> dict[str, Any]:
-    from .harness.runner import run_experiment_matrix
-
-    loaded = _load_config(args.config)
-    return run_experiment_matrix(
-        loaded=loaded,
-        release_dir=Path(args.release),
-        agent_config_paths=[Path(item) for item in args.agent],
-        defense_ids=args.defense,
-        repetitions=args.repetitions,
-        workers=args.workers,
-        instance_ids=args.instance,
-        limit=args.limit,
-        resume=args.resume,
-    )
-
-
-def cmd_evaluate(args: argparse.Namespace) -> dict[str, Any]:
-    from .evaluation.report import evaluate_release
-
-    loaded = _load_config(args.config)
-    return evaluate_release(
-        loaded=loaded,
-        release_dir=Path(args.release),
-        runs_dir=Path(args.runs),
-        output_dir=Path(args.output),
-        matching_profile=args.matching_profile,
-    )
-
-
-def cmd_inspect(args: argparse.Namespace) -> dict[str, Any]:
-    from .inspect import (
-        inspect_instance,
-        inspect_pair,
-        inspect_run,
-        inspect_trajectory,
-        inspect_verification,
-    )
-
-    loaded = _load_config(args.config)
-    if args.kind == "instance":
-        return inspect_instance(loaded, args.identifier)
-    if args.kind == "pair":
-        return inspect_pair(loaded, args.identifier)
-    if args.kind == "generation":
-        from .inspect import inspect_generation
-
-        return inspect_generation(loaded, args.identifier)
-    if args.kind == "trajectory":
-        return inspect_trajectory(loaded, args.identifier)
-    if args.kind == "verification":
-        return inspect_verification(loaded, args.identifier)
-    return inspect_run(loaded, args.identifier)
-
-
-def cmd_validate_run(args: argparse.Namespace) -> dict[str, Any]:
-    from .inspect import validate_run_artifacts_command
-
-    loaded = _load_config(args.config)
-    return validate_run_artifacts_command(
+    runner = CampaignRunner(
         loaded,
-        args.run,
-        check_event_order=not args.skip_event_order,
-        check_artifact_hashes=not args.skip_artifact_hashes,
-        check_parent_links=not args.skip_parent_links,
+        dataset_root=dataset_root,
+        archive_root=archive_root,
+        executor=executor,
+        model_label=model_label,
     )
+    if plan is not None:
+        runner.use_plan(plan)
+    return runner, plan
 
 
-def cmd_validate_release(args: argparse.Namespace) -> dict[str, Any]:
-    from .export.bundle import validate_release
+def cmd_campaign_plan(args: argparse.Namespace) -> dict[str, Any]:
+    from .campaign.pipeline import CampaignRunner
 
     loaded = _load_config(args.config)
-    return validate_release(
-        loaded=loaded,
-        release_dir=Path(args.release),
-        rebuild=args.rebuild,
-        rebuild_dir=Path(args.rebuild_dir) if args.rebuild_dir else None,
+    if args.variant_set:
+        loaded = with_variant_set(loaded, args.variant_set)
+    runner = CampaignRunner(
+        loaded,
+        dataset_root=Path(args.dataset) if args.dataset else None,
+        archive_root=Path(args.workspace) if args.workspace else None,
     )
+    return runner.write_plan(task_ids=args.task or None, limit=args.limit)
 
 
-def cmd_repair_output(args: argparse.Namespace) -> dict[str, Any]:
-    from .evaluation.repair import repair_output_file
+def cmd_campaign_run(args: argparse.Namespace) -> dict[str, Any]:
+    runner, plan = _runner(args)
+    if plan is None:
+        raise ConfigError("campaign run requires --plan")
+    task_ids = args.task or [item.task_id for item in plan.tasks]
+    results = [runner.run_task(task_id, resume=not args.no_resume) for task_id in task_ids]
+    return {
+        "ok": all(item.get("ok") for item in results),
+        "variant_set_id": plan.variant_set_id,
+        "results": results,
+    }
 
-    return repair_output_file(
-        raw_path=Path(args.raw),
-        output_path=Path(args.output),
-        repo_root=Path(args.repo_root) if args.repo_root else None,
+
+def cmd_campaign_analyze(args: argparse.Namespace) -> dict[str, Any]:
+    runner, plan = _runner(args)
+    if plan is None:
+        raise ConfigError("campaign analyze requires --plan")
+    task_ids = args.task or [item.task_id for item in plan.tasks]
+    return {"ok": True, "results": [runner.analyze(task_id) for task_id in task_ids]}
+
+
+def cmd_campaign_verify_archive(args: argparse.Namespace) -> dict[str, Any]:
+    runner, plan = _runner(args)
+    if plan is None:
+        raise ConfigError("campaign verify-archive requires --plan")
+    task_ids = args.task or [item.task_id for item in plan.tasks]
+    results = [runner.verify_archive(task_id) for task_id in task_ids]
+    return {"ok": all(item["ok"] for item in results), "results": results}
+
+
+def cmd_campaign_status(args: argparse.Namespace) -> dict[str, Any]:
+    from .campaign.plan import load_plan
+    from .campaign.state import TaskStateStore
+
+    loaded = _load_config(args.config)
+    plan = load_plan(Path(args.plan)) if args.plan else None
+    workspace = args.workspace or (
+        plan.archive_root if plan else loaded.config.campaign.archive_root
     )
+    store = TaskStateStore(Path(workspace))
+    tasks: list[dict[str, Any]] = []
+    if plan is not None:
+        for item in plan.tasks:
+            state = store.load(item.task_id)
+            tasks.append(
+                {
+                    "task_id": item.task_id,
+                    "phase": state.phase if state else "pending",
+                    "runs": len(state.run_ids) if state else 0,
+                    "scored": len(state.scored_run_ids) if state else 0,
+                    "ineligible": len(state.ineligible_run_ids) if state else 0,
+                    "error": state.error if state else None,
+                }
+            )
+    return {
+        "ok": True,
+        "workspace": store.root.as_posix(),
+        "variant_set_id": plan.variant_set_id if plan else None,
+        "tasks": tasks,
+    }
 
 
+# ------------------------------------------------------------------------ parser
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="vulnmirage",
-        description="VulnMirage adversarial repository-manipulation benchmark",
+        description="VulnMirage: adversarial repository-manipulation benchmark for code agents",
     )
     parser.add_argument("--version", action="version", version=f"vulnmirage {__version__}")
     parser.add_argument(
         "--env-file",
         default=None,
         help=(
-            "load local credentials from this .env file (default: ./.env or the "
-            "project .env; existing environment variables win)"
+            "load local credentials from this .env file (default: ./.env or the project "
+            ".env; existing environment variables win)"
         ),
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     parser.add_argument("-q", "--quiet", action="store_true", help="errors only")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    doctor = sub.add_parser("doctor", help="check the local environment")
+    doctor = sub.add_parser("doctor", help="check configuration, dataset, egress and executor")
     doctor.add_argument("--config", help="application config YAML")
     doctor.add_argument("--agent", help="optional agent config YAML")
     doctor.set_defaults(func=cmd_doctor)
 
-    schemas = sub.add_parser("schemas", help="regenerate JSON Schemas")
+    schemas = sub.add_parser("schemas", help="regenerate the JSON Schemas")
     schemas.add_argument("--output", default="schemas")
     schemas.set_defaults(func=cmd_schemas)
 
-    ingest = sub.add_parser("ingest", help="import dataset records")
+    ingest = sub.add_parser("ingest", help="read a dataset package")
     ingest_sub = ingest.add_subparsers(dest="ingest_kind", required=True)
-    vg = ingest_sub.add_parser("vulngym", help="import VulnGym reports.jsonl + entries.jsonl")
-    vg.add_argument("--reports", required=True)
-    vg.add_argument("--entries", required=True)
-    vg.add_argument("--output", required=True)
-    vg.add_argument("--allow-unverified", action="store_true")
-    vg.add_argument("--limit", type=int, default=None)
-    vg.add_argument("--dataset-name", default="vulngym")
-    vg.set_defaults(func=cmd_ingest_vulngym)
-
-    generic = ingest_sub.add_parser("generic-jsonl", help="import a normalized generic JSONL file")
-    generic.add_argument("--input", required=True)
-    generic.add_argument("--output", required=True)
-    generic.add_argument("--allow-unverified", action="store_true")
-    generic.add_argument("--limit", type=int, default=None)
-    generic.add_argument("--dataset-name", default="generic")
-    generic.set_defaults(func=cmd_ingest_generic)
-
-    rv = ingest_sub.add_parser(
-        "repovuln",
-        help="import a RepoVuln-50 xlsx workbook (one oracle per repository snapshot)",
+    core = ingest_sub.add_parser(
+        "dataset-core", help="read manifest + task JSONL + private oracle JSONL"
     )
-    rv.add_argument("--workbook", required=True)
-    rv.add_argument("--output", required=True)
-    rv.add_argument(
-        "--sheet",
+    core.add_argument("--root", required=True, help="dataset package root")
+    core.add_argument("--tasks", default=None, help="explicit task JSONL path")
+    core.add_argument("--oracle", default=None, help="explicit private oracle JSONL path")
+    core.add_argument("--skip-integrity", action="store_true")
+    core.add_argument("--with-tasks", action="store_true", help="include the per-task index")
+    core.set_defaults(func=cmd_ingest_dataset_core)
+
+    campaign = sub.add_parser("campaign", help="run one task from archive to archived artifacts")
+    campaign_sub = campaign.add_subparsers(dest="campaign_command", required=True)
+
+    def add_common(item: argparse.ArgumentParser, *, plan_required: bool) -> None:
+        if plan_required:
+            item.add_argument("--plan", required=True)
+        else:
+            item.add_argument("--plan", default=None)
+        item.add_argument("--config", default=None)
+        item.add_argument("--dataset", default=None, help="dataset package root")
+        item.add_argument("--workspace", default=None, help="campaign archive root")
+        item.add_argument("--task", action="append", default=None, help="repeatable task id")
+
+    plan_cmd = campaign_sub.add_parser("plan", help="freeze the campaign plan (offline)")
+    add_common(plan_cmd, plan_required=False)
+    plan_cmd.add_argument("--limit", type=int, default=None)
+    plan_cmd.add_argument(
+        "--variant-set",
         default=None,
-        help="worksheet name; default: the sheet whose header looks like RepoVuln-50",
+        help="variant-set YAML selected and frozen into this plan",
     )
-    rv.add_argument(
-        "--data-scope",
-        default=None,
-        help="comma list (live,historical); default: all rows",
-    )
-    rv.add_argument("--limit-groups", type=int, default=None)
-    rv.add_argument("--dataset-name", default="repovuln-50")
-    rv.set_defaults(func=cmd_ingest_repovuln)
+    plan_cmd.set_defaults(func=cmd_campaign_plan)
 
-    vm = ingest_sub.add_parser(
-        "vulnmirage",
-        help="import a VulnMirage-Audit dataset.yaml + cases.jsonl",
-    )
-    vm.add_argument("--manifest", required=True)
-    vm.add_argument("--cases", required=True)
-    vm.add_argument("--output", default=None)
-    vm.add_argument("--dataset-name", default=None)
-    vm.add_argument("--limit", type=int, default=None)
-    vm.add_argument(
-        "--allow-invalid",
-        action="store_true",
-        help="normalize valid cases even when other cases have errors",
-    )
-    vm.add_argument(
-        "--inspect-only",
-        action="store_true",
-        help="validate the dataset and report capabilities without writing oracles",
-    )
-    vm.set_defaults(func=cmd_ingest_vulnmirage)
+    for name, func, help_text in (
+        ("run", cmd_campaign_run, "execute (or resume) one task"),
+        ("resume", cmd_campaign_run, "continue every task of a plan"),
+    ):
+        item = campaign_sub.add_parser(name, help=help_text)
+        add_common(item, plan_required=True)
+        item.add_argument("--agent", default=None, help="agent config with an argv template")
+        item.add_argument("--model-label", default=None)
+        item.add_argument("--no-resume", action="store_true")
+        item.set_defaults(func=func)
 
-    materialize = sub.add_parser("materialize", help="cache the repository and build the M0 clean instance")
-    materialize.add_argument("--oracle", required=True)
-    materialize.add_argument("--config")
-    materialize.add_argument("--repo-url", help="override the repository URL (for local fixtures)")
-    materialize.add_argument("--fetch", action="store_true", help="explicitly fetch the cache remote")
-    materialize.add_argument("--force", action="store_true")
-    materialize.set_defaults(func=cmd_materialize)
-
-    generate = sub.add_parser("generate", help="generate M0-M6 benchmark instances")
-    generate.add_argument("--oracle", required=True)
-    generate.add_argument("--config")
-    generate.add_argument("--tiers", default=None, help="comma list, e.g. M0,M1,M2,M3")
-    generate.add_argument("--goals", default=None, help="comma list of attack goals")
-    generate.add_argument("--seed", type=int, default=None)
-    generate.add_argument("--split", default=None)
-    generate.add_argument("--max-variants", type=int, default=None)
-    generate.add_argument(
-        "--target-vulnerability-id",
-        default=None,
-        help="explicit single target vulnerability; omit to iterate every eligible target",
+    analyze = campaign_sub.add_parser(
+        "analyze", help="recompute mechanism artifacts from stored runs"
     )
-    generate.add_argument(
-        "--target-vulnerability-ids",
-        action="append",
-        default=None,
-        help="restrict generation to these target ids (each produces its own single-target variant)",
-    )
-    generate.add_argument(
-        "--candidates",
-        type=int,
-        default=None,
-        help="candidates per (oracle, goal, mechanism): >1 enables candidate generation",
-    )
-    generate.add_argument("--dedup-threshold", type=float, default=None)
-    generate.add_argument("--force", action="store_true")
-    generate.add_argument("--resume", action="store_true")
-    generate.set_defaults(func=cmd_generate)
+    add_common(analyze, plan_required=True)
+    analyze.set_defaults(func=cmd_campaign_analyze)
 
-    validate = sub.add_parser("validate", help="run the validation pipeline on one instance")
-    validate.add_argument("--instance", required=True)
-    validate.add_argument("--config")
-    validate.add_argument("--profile", default=None)
-    validate.add_argument("--clean-instance", default=None)
-    validate.set_defaults(func=cmd_validate)
-
-    export = sub.add_parser("export", help="export release-eligible instances")
-    export.add_argument("--instances", default=None)
-    export.add_argument("--output", default=None)
-    export.add_argument("--config")
-    export.add_argument("--only-release-eligible", action="store_true", default=True)
-    export.add_argument("--include-rejected", action="store_true")
-    export.add_argument("--name", default="vulnmirage")
-    export.add_argument("--release-version", default="v0.1")
-    export.add_argument(
-        "--all-instances",
-        action="store_true",
-        help="ignore the selection manifest and export every eligible instance (duplicates included)",
+    verify_archive = campaign_sub.add_parser(
+        "verify-archive", help="recompute every archived artifact hash"
     )
-    export.set_defaults(func=cmd_export)
+    add_common(verify_archive, plan_required=True)
+    verify_archive.set_defaults(func=cmd_campaign_verify_archive)
 
-    run = sub.add_parser("run", help="run a code agent over a release")
-    run.add_argument("--release", required=True)
-    run.add_argument("--agent", required=True)
-    run.add_argument("--config")
-    run.add_argument("--repetitions", type=int, default=None)
-    run.add_argument("--workers", type=int, default=None)
-    run.add_argument("--instance", action="append", default=None)
-    run.add_argument("--limit", type=int, default=None)
-    run.add_argument("--resume", action="store_true")
-    run.add_argument(
-        "--defense",
-        default=None,
-        help="defense condition id (default: defense.default in the config, normally D0)",
-    )
-    run.set_defaults(func=cmd_run)
-
-    matrix = sub.add_parser(
-        "run-matrix",
-        help="run release × agent_config × defense × repetition experiment cells",
-    )
-    matrix.add_argument("--release", required=True)
-    matrix.add_argument(
-        "--agent", action="append", required=True, help="agent config YAML (repeatable)"
-    )
-    matrix.add_argument(
-        "--defense",
-        action="append",
-        default=None,
-        help="defense condition id (repeatable; default: defense.default)",
-    )
-    matrix.add_argument("--config")
-    matrix.add_argument("--repetitions", type=int, default=None)
-    matrix.add_argument("--workers", type=int, default=None)
-    matrix.add_argument("--instance", action="append", default=None)
-    matrix.add_argument("--limit", type=int, default=None)
-    matrix.add_argument("--resume", action="store_true")
-    matrix.set_defaults(func=cmd_run_matrix)
-
-    evaluate = sub.add_parser("evaluate", help="parse outputs and compute paired metrics")
-    evaluate.add_argument("--release", required=True)
-    evaluate.add_argument("--runs", required=True)
-    evaluate.add_argument("--output", required=True)
-    evaluate.add_argument("--config")
-    evaluate.add_argument(
-        "--matching-profile",
-        choices=["strict", "relaxed"],
-        default="strict",
-    )
-    evaluate.set_defaults(func=cmd_evaluate)
-
-    inspect = sub.add_parser("inspect", help="inspect an instance, pair, run or trajectory")
-    inspect_sub = inspect.add_subparsers(dest="kind", required=True)
-    for kind in ("instance", "pair", "run", "trajectory", "verification", "generation"):
-        item = inspect_sub.add_parser(kind)
-        item.add_argument("identifier")
-        item.add_argument("--config")
-        item.set_defaults(func=cmd_inspect)
-
-    validate_run = sub.add_parser("validate-run", help="validate raw/normalized event artifacts")
-    validate_run.add_argument("--run", required=True)
-    validate_run.add_argument("--config")
-    validate_run.add_argument("--skip-event-order", action="store_true")
-    validate_run.add_argument("--skip-artifact-hashes", action="store_true")
-    validate_run.add_argument("--skip-parent-links", action="store_true")
-    validate_run.set_defaults(func=cmd_validate_run)
-
-    validate_release = sub.add_parser("validate-release", help="verify release bundle integrity")
-    validate_release.add_argument("--release", required=True)
-    validate_release.add_argument("--config")
-    validate_release.add_argument("--rebuild", action="store_true")
-    validate_release.add_argument("--rebuild-dir", default=None)
-    validate_release.set_defaults(func=cmd_validate_release)
-
-    repair = sub.add_parser("repair-output", help="extract one JSON object from raw agent output")
-    repair.add_argument("--raw", required=True)
-    repair.add_argument("--output", required=True)
-    repair.add_argument("--repo-root", default=None)
-    repair.set_defaults(func=cmd_repair_output)
-
-    optimize = sub.add_parser(
-        "optimize-payloads",
-        help="candidate-level development-set payload optimization (dev splits only)",
-    )
-    optimize.add_argument("--release", required=True)
-    optimize.add_argument("--agent", required=True)
-    optimize.add_argument("--config")
-    optimize.add_argument("--generations", type=int, default=3)
-    optimize.add_argument("--population", type=int, default=5)
-    optimize.add_argument("--output", required=True)
-    optimize.add_argument("--seed", type=int, default=None)
-    optimize.add_argument("--max-queries", type=int, default=None)
-    optimize.add_argument("--max-llm-calls", type=int, default=None)
-    optimize.add_argument("--token-budget", type=int, default=None)
-    optimize.add_argument(
-        "--rewrite",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="enable the real rewriter (default: generation.rewrite_enabled)",
-    )
-    optimize.set_defaults(func=cmd_optimize_payloads)
-
-    reference = sub.add_parser(
-        "reference-verify",
-        help="import a reference audit and verify its findings privately",
-    )
-    reference.add_argument("--oracle", required=True)
-    reference.add_argument("--report", required=True)
-    reference.add_argument("--metadata", default=None)
-    reference.add_argument("--output", default=None)
-    reference.add_argument("--config")
-    reference.set_defaults(func=cmd_reference_verify)
+    status = campaign_sub.add_parser("status", help="show per-task phase state")
+    add_common(status, plan_required=False)
+    status.set_defaults(func=cmd_campaign_status)
 
     return parser
 

@@ -1,0 +1,254 @@
+{
+  "$defs": {
+    "PrivateTarget": {
+      "additionalProperties": false,
+      "description": "One scored target, reduced to what scoring needs.",
+      "properties": {
+        "cwe_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cwe Ids",
+          "type": "array"
+        },
+        "eligibility": {
+          "default": "snapshot_verified",
+          "title": "Eligibility",
+          "type": "string"
+        },
+        "entry_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entry File"
+        },
+        "entry_function": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entry Function"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "function": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Function"
+        },
+        "line_end": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line End"
+        },
+        "line_start": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line Start"
+        },
+        "oracle_guided": {
+          "default": false,
+          "title": "Oracle Guided",
+          "type": "boolean"
+        },
+        "severity_convention": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity Convention"
+        },
+        "severity_level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity Level"
+        },
+        "severity_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity Score"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_id",
+        "file"
+      ],
+      "title": "PrivateTarget",
+      "type": "object"
+    },
+    "SafeDecoy": {
+      "additionalProperties": false,
+      "description": "A privately certified, intentionally non-vulnerable injected location.\n\nOnly findings that match one of these explicit locations may be called an\ninduced false positive.  Findings elsewhere remain unadjudicated because the\nbenchmark oracle is not an exhaustive inventory of every repository flaw.",
+      "properties": {
+        "cwe_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cwe Ids",
+          "type": "array"
+        },
+        "decoy_id": {
+          "title": "Decoy Id",
+          "type": "string"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "line_end": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line End"
+        },
+        "line_start": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line Start"
+        },
+        "proof_kind": {
+          "title": "Proof Kind",
+          "type": "string"
+        },
+        "proof_sha256": {
+          "title": "Proof Sha256",
+          "type": "string"
+        },
+        "safety_basis": {
+          "title": "Safety Basis",
+          "type": "string"
+        },
+        "variant_id": {
+          "title": "Variant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decoy_id",
+        "variant_id",
+        "file",
+        "proof_kind",
+        "proof_sha256",
+        "safety_basis"
+      ],
+      "title": "SafeDecoy",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "built_at": {
+      "title": "Built At",
+      "type": "string"
+    },
+    "safe_decoys": {
+      "items": {
+        "$ref": "#/$defs/SafeDecoy"
+      },
+      "title": "Safe Decoys",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "source": {
+      "default": "dataset-core",
+      "title": "Source",
+      "type": "string"
+    },
+    "targets": {
+      "items": {
+        "$ref": "#/$defs/PrivateTarget"
+      },
+      "title": "Targets",
+      "type": "array"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "snapshot_id"
+  ],
+  "title": "TargetSet",
+  "type": "object"
+}

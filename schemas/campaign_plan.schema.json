@@ -1,0 +1,407 @@
+{
+  "$defs": {
+    "PlanBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "audits_per_task": {
+          "default": 0,
+          "title": "Audits Per Task",
+          "type": "integer"
+        },
+        "max_tasks": {
+          "default": 1,
+          "title": "Max Tasks",
+          "type": "integer"
+        },
+        "max_workers": {
+          "default": 1,
+          "title": "Max Workers",
+          "type": "integer"
+        },
+        "note": {
+          "default": "one run per declared clean or attack variant per repetition; the count is fixed before any result is seen",
+          "title": "Note",
+          "type": "string"
+        },
+        "repetitions": {
+          "default": 1,
+          "title": "Repetitions",
+          "type": "integer"
+        }
+      },
+      "title": "PlanBudget",
+      "type": "object"
+    },
+    "PlanInvariants": {
+      "additionalProperties": false,
+      "description": "Run conditions that are **not** experimental variables.",
+      "properties": {
+        "egress_probe": {
+          "default": "always_on",
+          "title": "Egress Probe",
+          "type": "string"
+        },
+        "fresh_state": {
+          "default": "always_on",
+          "title": "Fresh State",
+          "type": "string"
+        },
+        "history_absent": {
+          "default": "always_on",
+          "title": "History Absent",
+          "type": "string"
+        },
+        "note": {
+          "default": "these are enforced for the clean baseline and every injected variant; a run that does not satisfy them is ineligible, it is not an attack outcome",
+          "title": "Note",
+          "type": "string"
+        },
+        "oracle_isolation": {
+          "default": "always_on",
+          "title": "Oracle Isolation",
+          "type": "string"
+        },
+        "scoring": {
+          "default": "after the run, in the verifier process",
+          "title": "Scoring",
+          "type": "string"
+        },
+        "task_prompt": {
+          "default": "identical across every variant of a task",
+          "title": "Task Prompt",
+          "type": "string"
+        },
+        "workspace_containment": {
+          "default": "always_on",
+          "title": "Workspace Containment",
+          "type": "string"
+        }
+      },
+      "title": "PlanInvariants",
+      "type": "object"
+    },
+    "PlanTask": {
+      "additionalProperties": false,
+      "properties": {
+        "archive_source_id": {
+          "title": "Archive Source Id",
+          "type": "string"
+        },
+        "commit_sha": {
+          "title": "Commit Sha",
+          "type": "string"
+        },
+        "effective_prompt_sha256": {
+          "title": "Effective Prompt Sha256",
+          "type": "string"
+        },
+        "eligible_target_count": {
+          "default": 0,
+          "title": "Eligible Target Count",
+          "type": "integer"
+        },
+        "primary_language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Primary Language"
+        },
+        "repetitions": {
+          "default": 1,
+          "title": "Repetitions",
+          "type": "integer"
+        },
+        "repo_id": {
+          "title": "Repo Id",
+          "type": "string"
+        },
+        "repo_url": {
+          "title": "Repo Url",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "source_prompt_sha256": {
+          "title": "Source Prompt Sha256",
+          "type": "string"
+        },
+        "target_count": {
+          "default": 0,
+          "title": "Target Count",
+          "type": "integer"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "task_prompt_rule_version": {
+          "title": "Task Prompt Rule Version",
+          "type": "string"
+        },
+        "variants": {
+          "items": {
+            "$ref": "#/$defs/PlanVariant"
+          },
+          "title": "Variants",
+          "type": "array"
+        }
+      },
+      "required": [
+        "task_id",
+        "snapshot_id",
+        "repo_id",
+        "repo_url",
+        "commit_sha",
+        "archive_source_id",
+        "source_prompt_sha256",
+        "effective_prompt_sha256",
+        "task_prompt_rule_version"
+      ],
+      "title": "PlanTask",
+      "type": "object"
+    },
+    "PlanVariant": {
+      "additionalProperties": false,
+      "properties": {
+        "carrier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carrier"
+        },
+        "edit_count": {
+          "default": 0,
+          "title": "Edit Count",
+          "type": "integer"
+        },
+        "edit_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Edit Paths",
+          "type": "array"
+        },
+        "goal": {
+          "default": "none",
+          "title": "Goal",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "knowledge": {
+          "default": "public_context",
+          "title": "Knowledge",
+          "type": "string"
+        },
+        "method_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Id"
+        },
+        "payload_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Payload Id"
+        },
+        "reproduction_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reproduction Status"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        },
+        "variant_id": {
+          "title": "Variant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variant_id",
+        "kind"
+      ],
+      "title": "PlanVariant",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "archive_root": {
+      "title": "Archive Root",
+      "type": "string"
+    },
+    "budget": {
+      "$ref": "#/$defs/PlanBudget"
+    },
+    "config_sha256": {
+      "title": "Config Sha256",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "dataset_manifest_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Manifest Sha256"
+    },
+    "dataset_root": {
+      "title": "Dataset Root",
+      "type": "string"
+    },
+    "invariants": {
+      "$ref": "#/$defs/PlanInvariants"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "oracle_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Oracle File"
+    },
+    "payload_assets_sha256": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Payload Assets Sha256",
+      "type": "object"
+    },
+    "research_question": {
+      "default": "",
+      "title": "Research Question",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_prompt_rule_version": {
+      "default": "2026-11-03.1",
+      "title": "Task Prompt Rule Version",
+      "type": "string"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/PlanTask"
+      },
+      "title": "Tasks",
+      "type": "array"
+    },
+    "tasks_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tasks File"
+    },
+    "variant_set_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Variant Set File"
+    },
+    "variant_set_id": {
+      "default": "inline",
+      "title": "Variant Set Id",
+      "type": "string"
+    },
+    "variant_set_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Variant Set Sha256"
+    }
+  },
+  "required": [
+    "config_sha256",
+    "dataset_root",
+    "archive_root"
+  ],
+  "title": "PlanDoc",
+  "type": "object"
+}

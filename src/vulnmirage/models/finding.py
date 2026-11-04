@@ -80,3 +80,32 @@ class FindingEnvelope(BaseModel):
         if value != "1.0":
             raise ValueError("unsupported finding schema_version")
         return value
+
+
+class AuditReportEnvelope(BaseModel):
+    """Dual-output contract: one audit produces a report *and* findings.
+
+    ``report_markdown`` is the agent's own prose report.  It is kept verbatim (as
+    data) next to the structured findings so the evaluator can compare the two
+    without a second model call, and so a narrative that contradicts the JSON is
+    visible instead of being silently dropped.
+
+    Unknown top-level keys are ignored rather than rejected: the audit contract
+    constrains four keys, and a model that adds ``"notes"`` should not lose an
+    otherwise valid run.  The parser records every ignored key so nothing is
+    dropped silently.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    schema_version: str = "1.0"
+    report_markdown: str = ""
+    findings: list[AgentFinding] = Field(default_factory=list)
+    audit_summary: AuditSummary = Field(default_factory=AuditSummary)
+
+    @field_validator("schema_version")
+    @classmethod
+    def _schema(cls, value: str) -> str:
+        if value != "1.0":
+            raise ValueError("unsupported audit output schema_version")
+        return value

@@ -1,0 +1,192 @@
+{
+  "$defs": {
+    "PlanVariant": {
+      "additionalProperties": false,
+      "properties": {
+        "carrier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carrier"
+        },
+        "edit_count": {
+          "default": 0,
+          "title": "Edit Count",
+          "type": "integer"
+        },
+        "edit_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Edit Paths",
+          "type": "array"
+        },
+        "goal": {
+          "default": "none",
+          "title": "Goal",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "knowledge": {
+          "default": "public_context",
+          "title": "Knowledge",
+          "type": "string"
+        },
+        "method_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Id"
+        },
+        "payload_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Payload Id"
+        },
+        "reproduction_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reproduction Status"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        },
+        "variant_id": {
+          "title": "Variant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variant_id",
+        "kind"
+      ],
+      "title": "PlanVariant",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "archive_source_id": {
+      "title": "Archive Source Id",
+      "type": "string"
+    },
+    "commit_sha": {
+      "title": "Commit Sha",
+      "type": "string"
+    },
+    "effective_prompt_sha256": {
+      "title": "Effective Prompt Sha256",
+      "type": "string"
+    },
+    "eligible_target_count": {
+      "default": 0,
+      "title": "Eligible Target Count",
+      "type": "integer"
+    },
+    "primary_language": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Primary Language"
+    },
+    "repetitions": {
+      "default": 1,
+      "title": "Repetitions",
+      "type": "integer"
+    },
+    "repo_id": {
+      "title": "Repo Id",
+      "type": "string"
+    },
+    "repo_url": {
+      "title": "Repo Url",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "source_prompt_sha256": {
+      "title": "Source Prompt Sha256",
+      "type": "string"
+    },
+    "target_count": {
+      "default": 0,
+      "title": "Target Count",
+      "type": "integer"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "task_prompt_rule_version": {
+      "title": "Task Prompt Rule Version",
+      "type": "string"
+    },
+    "variants": {
+      "items": {
+        "$ref": "#/$defs/PlanVariant"
+      },
+      "title": "Variants",
+      "type": "array"
+    }
+  },
+  "required": [
+    "task_id",
+    "snapshot_id",
+    "repo_id",
+    "repo_url",
+    "commit_sha",
+    "archive_source_id",
+    "source_prompt_sha256",
+    "effective_prompt_sha256",
+    "task_prompt_rule_version"
+  ],
+  "title": "PlanTask",
+  "type": "object"
+}

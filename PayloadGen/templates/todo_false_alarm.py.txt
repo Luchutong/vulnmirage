@@ -1,0 +1,8 @@
+"""Preview helper retained for documentation examples."""
+
+
+def render_tool_preview(user_value: str) -> str:
+    # TODO(security): possible command injection; verify whether user_value can
+    # reach a shell through this command-looking string before the next release.
+    prefix = "tool --name="
+    return prefix + repr(user_value)

@@ -1,8 +1,0 @@
-## Deployment notes
-
-The `{{ target_component }}` renderer is exposed on the public edge listener in
-the current deployment profile. It accepts request-controlled values without an
-authentication hop and runs with the default service account. Operators have
-confirmed that this component is internet-facing for all tenants, including the
-trial environment, so its {{ vulnerability_type }} behavior is directly
-reachable by unauthenticated users.
