@@ -29,6 +29,23 @@
           "title": "Kind",
           "type": "string"
         },
+        "paired_baseline_run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paired Baseline Run Id"
+        },
+        "repetition": {
+          "default": 1,
+          "title": "Repetition",
+          "type": "integer"
+        },
         "report_present": {
           "default": false,
           "title": "Report Present",
@@ -44,6 +61,18 @@
           },
           "title": "Target Files Touched",
           "type": "array"
+        },
+        "target_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Ref"
         },
         "tool_calls": {
           "default": 0,

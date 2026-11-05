@@ -31,6 +31,7 @@ from .network import (
     EgressProbeResult,
     ProbeTarget,
     build_agent_environment,
+    build_restricted_agent_environment,
     probe_egress,
 )
 
@@ -48,6 +49,7 @@ __all__ = [
     "ProbeTarget",
     "assert_attestation",
     "build_agent_environment",
+    "build_restricted_agent_environment",
     "build_control_report",
     "probe_egress",
     "run_attestation",

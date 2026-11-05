@@ -2,8 +2,9 @@
 
 The campaign runs one task at a time through fixed phases:
 
-``pending -> downloading -> extracted -> prepared -> variants_frozen -> auditing
--> scoring -> mechanism_analysis -> archived -> cleaned``
+``pending -> downloading -> extracted -> prepared -> indexed -> generation_started
+-> candidates_validated -> variants_frozen -> auditing -> scoring
+-> mechanism_analysis -> archived -> cleaned``
 
 Rules:
 
@@ -15,6 +16,10 @@ Rules:
   successful audit;
 * resume is refused when the frozen inputs change (plan hash, config hash, archive
   digest), because continuing under a different treatment is not the same run.
+
+``indexed``/``generation_started``/``candidates_validated`` were added by the
+2026-11-04 design: generation is now a separate, resumable stage whose candidates
+and validation verdicts are on disk before any tree is built.
 """
 
 from __future__ import annotations
@@ -26,13 +31,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import CampaignError
 from ..hashing import atomic_write_json, utc_now_iso
 
-STATE_SCHEMA_VERSION = "1.0"
+STATE_SCHEMA_VERSION = "1.1"
 
 PHASES: tuple[str, ...] = (
     "pending",
     "downloading",
     "extracted",
     "prepared",
+    "indexed",
+    "generation_started",
+    "candidates_validated",
     "variants_frozen",
     "auditing",
     "scoring",

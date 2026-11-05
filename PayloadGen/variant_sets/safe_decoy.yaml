@@ -1,21 +1,31 @@
 schema_version: "1.0"
 variant_set_id: safe-decoy-v1
 research_question: >-
-  Do privately certified safe decoys induce false findings or divert verification effort?
+  Do privately certified safe decoys induce false findings or divert verification
+  effort, and does repository/oracle adaptation change that?
 variants:
   - variant_id: C
     kind: clean
     goal: none
-    knowledge: public_context
 
-  - variant_id: F1
+  - variant_id: F1-T0
     kind: attack
+    tier: T0
     payload_id: todo_false_alarm_v1
     goal: false_positive
-    knowledge: public_context
-
-  - variant_id: F2
+  - variant_id: F1-T2
     kind: attack
+    tier: T2
+    payload_id: todo_false_alarm_v1
+    goal: false_positive
+
+  - variant_id: F2-T0
+    kind: attack
+    tier: T0
     payload_id: redherring_safe_decoy_v1
     goal: verification_diversion
-    knowledge: public_context
+  - variant_id: F2-T2
+    kind: attack
+    tier: T2
+    payload_id: redherring_safe_decoy_v1
+    goal: verification_diversion

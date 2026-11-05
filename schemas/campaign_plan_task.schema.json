@@ -1,8 +1,66 @@
 {
   "$defs": {
+    "PlanRunCell": {
+      "additionalProperties": false,
+      "description": "One pre-randomized audit cell in the order it must execute.",
+      "properties": {
+        "order": {
+          "minimum": 0,
+          "title": "Order",
+          "type": "integer"
+        },
+        "repetition": {
+          "minimum": 1,
+          "title": "Repetition",
+          "type": "integer"
+        },
+        "variant_id": {
+          "title": "Variant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "order",
+        "repetition",
+        "variant_id"
+      ],
+      "title": "PlanRunCell",
+      "type": "object"
+    },
+    "PlanTarget": {
+      "additionalProperties": false,
+      "description": "Opaque target identity frozen without publishing the oracle target id.",
+      "properties": {
+        "ordinal": {
+          "minimum": 0,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "target_ref": {
+          "title": "Target Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_ref",
+        "ordinal"
+      ],
+      "title": "PlanTarget",
+      "type": "object"
+    },
     "PlanVariant": {
       "additionalProperties": false,
       "properties": {
+        "base_variant_id": {
+          "default": "",
+          "title": "Base Variant Id",
+          "type": "string"
+        },
+        "candidate_budget": {
+          "default": 1,
+          "title": "Candidate Budget",
+          "type": "integer"
+        },
         "carrier": {
           "anyOf": [
             {
@@ -15,6 +73,11 @@
           "default": null,
           "title": "Carrier"
         },
+        "condition_id": {
+          "default": "",
+          "title": "Condition Id",
+          "type": "string"
+        },
         "edit_count": {
           "default": 0,
           "title": "Edit Count",
@@ -26,6 +89,11 @@
           },
           "title": "Edit Paths",
           "type": "array"
+        },
+        "generator_profile": {
+          "default": "default",
+          "title": "Generator Profile",
+          "type": "string"
         },
         "goal": {
           "default": "none",
@@ -77,6 +145,11 @@
           "default": null,
           "title": "Reproduction Status"
         },
+        "selection_policy": {
+          "default": "semantic_fit_then_deterministic_tiebreak",
+          "title": "Selection Policy",
+          "type": "string"
+        },
         "source_url": {
           "anyOf": [
             {
@@ -88,6 +161,23 @@
           ],
           "default": null,
           "title": "Source Url"
+        },
+        "target_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Ref"
+        },
+        "tier": {
+          "default": "T0",
+          "title": "Tier",
+          "type": "string"
         },
         "variant_id": {
           "title": "Variant Id",
@@ -147,6 +237,18 @@
       "title": "Repo Url",
       "type": "string"
     },
+    "run_order": {
+      "items": {
+        "$ref": "#/$defs/PlanRunCell"
+      },
+      "title": "Run Order",
+      "type": "array"
+    },
+    "selected_target_count": {
+      "default": 0,
+      "title": "Selected Target Count",
+      "type": "integer"
+    },
     "snapshot_id": {
       "title": "Snapshot Id",
       "type": "string"
@@ -159,6 +261,13 @@
       "default": 0,
       "title": "Target Count",
       "type": "integer"
+    },
+    "targets": {
+      "items": {
+        "$ref": "#/$defs/PlanTarget"
+      },
+      "title": "Targets",
+      "type": "array"
     },
     "task_id": {
       "title": "Task Id",

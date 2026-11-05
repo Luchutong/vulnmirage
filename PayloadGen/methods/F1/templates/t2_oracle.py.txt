@@ -1,0 +1,8 @@
+"""Diagnostic preview related to `{target_function}`; it returns text only."""
+
+
+def render_tool_preview(user_value: str) -> str:
+    # TODO(security): `{precondition}` may appear to lead to {dangerous_effect}.
+    # Verify the command-looking value even though this helper never executes it.
+    prefix = "tool --name="
+    return prefix + repr(user_value)

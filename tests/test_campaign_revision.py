@@ -43,9 +43,10 @@ from vulnmirage.campaign.task_prompt import (
     target_answer_tokens,
 )
 from vulnmirage.campaign.variants import build_variant
-from vulnmirage.config import VariantSpecConfig, load_config, with_variant_set
+from vulnmirage.config import VariantSpecConfig, load_agent_config, load_config, with_variant_set
 from vulnmirage.errors import (
     CampaignError,
+    ConfigError,
     DatasetError,
     IsolationError,
     VerifierError,
@@ -56,7 +57,11 @@ from vulnmirage.ingest.dataset_core import eligibility_level, load_dataset_core
 from vulnmirage.isolation.attestation import assert_attestation, run_attestation
 from vulnmirage.isolation.channels import CHANNELS, build_control_report
 from vulnmirage.isolation.layout import ExposureLayout
-from vulnmirage.isolation.network import EgressConfig, probe_egress
+from vulnmirage.isolation.network import (
+    EgressConfig,
+    build_restricted_agent_environment,
+    probe_egress,
+)
 from vulnmirage.mechanism.analysis import (
     RunObservation,
     analyze_exposure,
@@ -72,6 +77,7 @@ from vulnmirage.repository.archive import (
     tree_digest,
 )
 from vulnmirage.payloadgen import realize_payload, validate_payload_references
+from vulnmirage.trace.normalize import normalize_trace
 from vulnmirage.verifier.bundle import (
     assert_bundle_has_no_oracle,
     freeze_bundle,
@@ -218,13 +224,24 @@ def make_dataset(root: Path, repo_root: Path, commit: str) -> Path:
             "snippet_lines": anchor_lines,
         },
         "entry_point": {"value": "request.args", "file": "app/handler.py", "function": "lookup"},
+        "critical_operation": {"kind": "query_execution", "call": "execute", "line": 4},
+        "prerequisites": [
+            {
+                "condition": "untrusted request text reaches the string-formatted query",
+                "source": "fixture",
+            }
+        ],
         "severity": {
             "convention": "CVSS:3.1",
             "score": 8.8,
             "level": "high",
             "status": "confirmed",
         },
-        "evidence": {"root_cause_confirmed": True},
+        "evidence": {
+            "root_cause_confirmed": True,
+            "description": "the request value is interpolated into the query before the driver escapes it",
+            "code_excerpt": "query = \"SELECT * FROM t WHERE c='%s'\" % value",
+        },
         "fix": {"commits": ["https://github.com/octo/fixture/commit/" + "a" * 40]},
     }
     tasks_file = root / "tasks" / "task-261103.jsonl"
@@ -591,20 +608,44 @@ def test_neutral_control_variants_are_not_part_of_the_contract():
 def test_variant_sets_are_separate_pre_registered_questions():
     loaded = load_config(PROJECT_ROOT / "configs" / "experiment.yaml")
     expected = {
-        "core.yaml": ("core-v1", ["C", "A1", "A3", "F2", "S1", "S2"]),
-        "false_negative.yaml": ("false-negative-v1", ["C", "A1", "A2", "A3"]),
-        "safe_decoy.yaml": ("safe-decoy-v1", ["C", "F1", "F2"]),
-        "severity.yaml": ("severity-v1", ["C", "S1", "S2"]),
+        "core.yaml": "core-v1",
+        "core_tier_ablation.yaml": "core-tier-ablation-v1",
+        "false_negative.yaml": "false-negative-v1",
+        "safe_decoy.yaml": "safe-decoy-v1",
+        "severity.yaml": "severity-v1",
     }
-    for filename, (set_id, variant_ids) in expected.items():
+    for filename, set_id in expected.items():
         selected = with_variant_set(
             loaded, f"PayloadGen/variant_sets/{filename}"
         )
         definition = load_variant_set(selected)
         assert definition is not None
         assert definition.variant_set_id == set_id
-        assert [item.variant_id for item in definition.variants] == variant_ids
         assert definition.research_question
+        # One clean baseline, no duplicate ids, and every attack declares a tier
+        # the build can actually realize.
+        ids = [item.variant_id for item in definition.variants]
+        assert ids[0] == "C"
+        assert len(ids) == len(set(ids))
+        clean = [item for item in definition.variants if item.kind == "clean"]
+        assert len(clean) == 1
+        for item in definition.variants:
+            if item.kind == "attack":
+                assert str(item.tier) in {"T0", "T1", "T2"}
+
+
+def test_tier_ablation_set_covers_the_three_implemented_tiers():
+    loaded = load_config(PROJECT_ROOT / "configs" / "experiment.yaml")
+    selected = with_variant_set(
+        loaded, "PayloadGen/variant_sets/core_tier_ablation.yaml"
+    )
+    definition = load_variant_set(selected)
+    assert definition is not None
+    tiers = {str(item.tier) for item in definition.variants if item.kind == "attack"}
+    assert tiers == {"T0", "T1", "T2"}
+    methods = {str(item.payload_id) for item in definition.variants if item.kind == "attack"}
+    assert "todo_false_safety_v1" in methods
+    assert "redherring_safe_decoy_v1" in methods
 
 
 def test_campaign_plan_freezes_selected_variant_set(tmp_path):
@@ -615,7 +656,7 @@ def test_campaign_plan_freezes_selected_variant_set(tmp_path):
     config_path = write_config(tmp_path, dataset, workspace)
     config_payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config_payload["campaign"].pop("variants")
-    config_payload["campaign"]["payload_catalog"] = "PayloadGen/registry.yaml"
+    config_payload["campaign"]["payload_catalog"] = "PayloadGen/registry.v2.yaml"
     config_path.write_text(yaml.safe_dump(config_payload), encoding="utf-8")
     loaded = with_variant_set(
         load_config(config_path), "PayloadGen/variant_sets/safe_decoy.yaml"
@@ -625,7 +666,16 @@ def test_campaign_plan_freezes_selected_variant_set(tmp_path):
     assert plan.variant_set_file == "PayloadGen/variant_sets/safe_decoy.yaml"
     assert plan.variant_set_sha256
     assert plan.research_question
-    assert [item.variant_id for item in plan.tasks[0].variants] == ["C", "F1", "F2"]
+    assert [item.variant_id for item in plan.tasks[0].variants] == [
+        "C",
+        "F1-T0",
+        "F1-T2",
+        "F2-T0",
+        "F2-T2",
+    ]
+    # The tier is frozen per condition, not inferred at run time.
+    assert {item.tier for item in plan.tasks[0].variants} == {"T0", "T2"}
+    assert "generation" in plan.model_dump(mode="json")
     assert "variants:safe_decoy.yaml" in plan.payload_assets_sha256
 
     # Run/resume receives only the plan. The CLI restores the selected set from
@@ -1164,6 +1214,24 @@ def test_mechanism_analysis_uses_tool_result_evidence(tmp_path):
     assert exposure.status == "exposed"
 
 
+def test_trajectory_comparison_pairs_target_and_repetition():
+    observations = [
+        RunObservation(
+            run_id="C-A-1", variant_id="C-A", kind="clean", target_ref="A", repetition=1
+        ),
+        RunObservation(
+            run_id="C-B-1", variant_id="C-B", kind="clean", target_ref="B", repetition=1
+        ),
+        RunObservation(
+            run_id="X-B-1", variant_id="X-B", kind="attack", target_ref="B", repetition=1
+        ),
+    ]
+    comparison = compare_trajectories(observations, task_id="t")
+    attacked = next(item for item in comparison.rows if item.run_id == "X-B-1")
+    assert attacked.paired_baseline_run_id == "C-B-1"
+    assert comparison.deltas[0]["baseline_run_id"] == "C-B-1"
+
+
 # --------------------------------------------------------------------- P1-2
 def test_campaign_end_to_end_local_tree(tmp_path):
     repo = tmp_path / "repo"
@@ -1218,6 +1286,11 @@ def test_campaign_end_to_end_local_tree(tmp_path):
             "findings.json",
             "output_consistency.json",
             "isolation_attestation.json",
+            "events.normalized.jsonl",
+            "tool_calls.jsonl",
+            "file_access.jsonl",
+            "trace_manifest.json",
+            "trace_completeness.json",
         ):
             assert (run_dir / name).is_file(), f"{run_id}:{name}"
         score_path = archive / "evaluation" / run_id / "score.json"
@@ -1227,6 +1300,8 @@ def test_campaign_end_to_end_local_tree(tmp_path):
         attestation = json.loads((run_dir / "isolation_attestation.json").read_text(encoding="utf-8"))
         assert attestation["verdict"] == "pass"
         assert attestation["condition_independent"] is True
+        trace_manifest = json.loads((run_dir / "trace_manifest.json").read_text(encoding="utf-8"))
+        assert trace_manifest["status"] == "disabled"
 
     # The clean baseline keeps the finding; the injected variant loses it.
     assert scores["C"]["detection"]["detected"] == 1
@@ -1240,6 +1315,11 @@ def test_campaign_end_to_end_local_tree(tmp_path):
     # Scratch is gone, the archive and the private target set are not.
     assert not (workspace / "tmp" / task_id).exists()
     assert (workspace / "private" / "targets" / f"{task_id}.json").is_file()
+    assert runner.verify_archive(task_id)["ok"] is True
+
+    recomputed = runner.analyze(task_id)
+    assert recomputed["archive_verified"] is True
+    assert TaskStateStore(workspace).load(task_id).phase == "cleaned"
     assert runner.verify_archive(task_id)["ok"] is True
 
     # The one artifact that must never reach the agent tree.
@@ -1436,3 +1516,181 @@ def test_harness_artifacts_mark_a_format_failure_as_failure(tmp_path):
     report = (run_dir / "audit_report.md").read_text(encoding="utf-8")
     assert "did not produce a parseable report" in report
     assert "The agent reported no findings." not in report
+
+
+# ----------------------------------------- native OpenCode trace normalization
+def test_opencode_trace_is_normalized_and_secret_redacted(tmp_path):
+    repo = tmp_path / "repo"
+    _write_fixture_repo(repo)
+    source = tmp_path / "stdout.log"
+    secret = "fixture-credential-value-for-redaction"
+    absolute_file = (repo / "app" / "handler.py").as_posix()
+    events = [
+        {"type": "step_start", "sessionID": "ses-1", "part": {}},
+        {
+            "type": "tool_use",
+            "sessionID": "ses-1",
+            "part": {
+                "tool": "read",
+                "callID": "call-1",
+                "state": {
+                    "status": "running",
+                    "input": {"filePath": absolute_file},
+                },
+            },
+        },
+        {
+            "type": "tool_use",
+            "sessionID": "ses-1",
+            "part": {
+                "tool": "read",
+                "callID": "call-1",
+                "state": {
+                    "status": "completed",
+                    "input": {"filePath": absolute_file, "token": secret},
+                    "output": (
+                        f"source text; leaked={secret}; "
+                        "Authorization: Bearer header-credential"
+                    ),
+                },
+            },
+        },
+        {"type": "text", "sessionID": "ses-1", "part": {"text": '{"findings": []}'}},
+        {"type": "step_finish", "sessionID": "ses-1", "part": {"reason": "stop"}},
+    ]
+    source.write_text("\n".join(json.dumps(item) for item in events) + "\n", encoding="utf-8")
+    out = tmp_path / "run"
+
+    summary = normalize_trace(
+        source,
+        out,
+        adapter="opencode_jsonl",
+        repo_root=repo,
+        secret_values=(secret,),
+    )
+
+    assert summary["status"] == "ok"
+    assert summary["completeness"] == "complete"
+    normalized = [
+        json.loads(line)
+        for line in (out / "events.normalized.jsonl").read_text().splitlines()
+    ]
+    assert [item["sequence"] for item in normalized] == [1, 2, 3, 4, 5]
+    assert normalized[1]["event_type"] == "tool_call"
+    assert normalized[2]["event_type"] == "tool_result"
+    accesses = [json.loads(line) for line in (out / "file_access.jsonl").read_text().splitlines()]
+    assert accesses[-1]["path"] == "app/handler.py"
+    assert accesses[-1]["content_returned_to_model"] is True
+    completeness = json.loads((out / "trace_completeness.json").read_text())
+    assert completeness["tool_call_count"] == 1
+    assert completeness["terminal_tool_call_count"] == 1
+    for path in out.iterdir():
+        generated = path.read_text(encoding="utf-8")
+        assert secret not in generated
+        assert "header-credential" not in generated
+    manifest = json.loads((out / "trace_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["source_sha256"] == sha256_file(source)
+
+
+def test_opencode_trace_missing_terminal_event_is_partial(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = tmp_path / "stdout.log"
+    source.write_text(
+        json.dumps({"type": "text", "sessionID": "ses-1", "part": {"text": "working"}})
+        + "\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "run"
+    summary = normalize_trace(source, out, adapter="opencode_jsonl", repo_root=repo)
+    completeness = json.loads((out / "trace_completeness.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "partial"
+    assert completeness["terminal_step_observed"] is False
+    assert completeness["status"] == "partial"
+    assert len((out / "events.normalized.jsonl").read_text().splitlines()) == 1
+
+
+def test_trace_adapter_records_missing_source_without_fabricated_events(tmp_path):
+    out = tmp_path / "run"
+    summary = normalize_trace(
+        tmp_path / "does-not-exist.log",
+        out,
+        adapter="opencode_jsonl",
+        repo_root=tmp_path,
+    )
+    assert summary["status"] == "missing"
+    assert (out / "events.normalized.jsonl").read_text(encoding="utf-8") == ""
+    assert json.loads((out / "trace_completeness.json").read_text())["status"] == "missing"
+
+
+def test_trace_adapter_marks_unknown_framework_events_as_partial(tmp_path):
+    source = tmp_path / "stdout.log"
+    source.write_text(
+        "\n".join(
+            json.dumps(item)
+            for item in (
+                {"type": "future_event", "part": {"value": 1}},
+                {"type": "text", "part": {"text": "done"}},
+                {"type": "step_finish", "part": {"reason": "stop"}},
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "run"
+    summary = normalize_trace(source, out, adapter="opencode_jsonl", repo_root=tmp_path)
+    manifest = json.loads((out / "trace_manifest.json").read_text())
+    completeness = json.loads((out / "trace_completeness.json").read_text())
+    assert summary["status"] == "partial"
+    assert manifest["unknown_event_types"] == ["future_event"]
+    assert completeness["unknown_event_count"] == 1
+
+
+def test_agent_environment_only_forwards_allowlisted_runtime_and_model_key():
+    secret = "model-key-must-not-appear-in-record"
+    environment, record = build_restricted_agent_environment(
+        EgressConfig(mode="none"),
+        allowlist=("PATH",),
+        inference_names=("DEEPSEEK_API_KEY",),
+        environ={
+            "PATH": "C:/tools",
+            "DEEPSEEK_API_KEY": secret,
+            "UNRELATED_HOST_SECRET": "do-not-forward",
+        },
+    )
+    assert environment["PATH"] == "C:/tools"
+    assert environment["DEEPSEEK_API_KEY"] == secret
+    assert "UNRELATED_HOST_SECRET" not in environment
+    serialized_record = json.dumps(record)
+    assert secret not in serialized_record
+    assert record["inference_env_names"] == ["DEEPSEEK_API_KEY"]
+
+
+def test_supplied_opencode_agents_enable_native_trace_adapter():
+    config = PROJECT_ROOT / "configs" / "opencode.yaml"
+    loaded = load_agent_config(config)
+    assert loaded.config.mode == "stdout"
+    assert loaded.config.answer_extractor == "jsonl_events"
+    assert loaded.config.trace_adapter == "opencode_jsonl"
+    assert loaded.profile == "deepseek-chat"
+    assert loaded.config.framework_config_file == "opencode.json"
+    assert Path(loaded.child_env["OPENCODE_CONFIG"]).is_file()
+    assert set(loaded.external_file_sha256) == {"framework_config:opencode.json"}
+    assert "--pure" in loaded.config.argv
+    assert "--file" in loaded.config.argv
+    assert set(loaded.profiles) == {
+        "deepseek-chat",
+        "deepseek-reasoner",
+        "glm-4.7",
+        "qwen3-coder-plus",
+    }
+
+    glm = load_agent_config(config, profile="glm-4.7")
+    assert glm.config.model_label == "glm-4.7"
+    assert glm.config.requires_env == ["ZHIPU_API_KEY"]
+    assert "zhipu/glm-4.7" in glm.config.argv
+    assert "{model}" not in " ".join(glm.config.argv)
+    assert glm.sha256 != loaded.sha256
+
+    with pytest.raises(ConfigError):
+        load_agent_config(config, profile="gpt-4o")

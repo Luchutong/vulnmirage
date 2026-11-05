@@ -32,6 +32,35 @@
       "title": "PlanBudget",
       "type": "object"
     },
+    "PlanGeneration": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_budget": {
+          "default": 3,
+          "title": "Candidate Budget",
+          "type": "integer"
+        },
+        "require_candidate_validation": {
+          "default": true,
+          "title": "Require Candidate Validation",
+          "type": "boolean"
+        },
+        "seed": {
+          "default": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "tier_profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PlanTierProfile"
+          },
+          "title": "Tier Profiles",
+          "type": "object"
+        }
+      },
+      "title": "PlanGeneration",
+      "type": "object"
+    },
     "PlanInvariants": {
       "additionalProperties": false,
       "description": "Run conditions that are **not** experimental variables.",
@@ -80,6 +109,54 @@
       "title": "PlanInvariants",
       "type": "object"
     },
+    "PlanRunCell": {
+      "additionalProperties": false,
+      "description": "One pre-randomized audit cell in the order it must execute.",
+      "properties": {
+        "order": {
+          "minimum": 0,
+          "title": "Order",
+          "type": "integer"
+        },
+        "repetition": {
+          "minimum": 1,
+          "title": "Repetition",
+          "type": "integer"
+        },
+        "variant_id": {
+          "title": "Variant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "order",
+        "repetition",
+        "variant_id"
+      ],
+      "title": "PlanRunCell",
+      "type": "object"
+    },
+    "PlanTarget": {
+      "additionalProperties": false,
+      "description": "Opaque target identity frozen without publishing the oracle target id.",
+      "properties": {
+        "ordinal": {
+          "minimum": 0,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "target_ref": {
+          "title": "Target Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_ref",
+        "ordinal"
+      ],
+      "title": "PlanTarget",
+      "type": "object"
+    },
     "PlanTask": {
       "additionalProperties": false,
       "properties": {
@@ -125,6 +202,18 @@
           "title": "Repo Url",
           "type": "string"
         },
+        "run_order": {
+          "items": {
+            "$ref": "#/$defs/PlanRunCell"
+          },
+          "title": "Run Order",
+          "type": "array"
+        },
+        "selected_target_count": {
+          "default": 0,
+          "title": "Selected Target Count",
+          "type": "integer"
+        },
         "snapshot_id": {
           "title": "Snapshot Id",
           "type": "string"
@@ -137,6 +226,13 @@
           "default": 0,
           "title": "Target Count",
           "type": "integer"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/PlanTarget"
+          },
+          "title": "Targets",
+          "type": "array"
         },
         "task_id": {
           "title": "Task Id",
@@ -168,9 +264,90 @@
       "title": "PlanTask",
       "type": "object"
     },
+    "PlanTierProfile": {
+      "additionalProperties": false,
+      "description": "The generation rules a tier is frozen with (design §5.1).",
+      "properties": {
+        "candidate_budget": {
+          "default": 1,
+          "title": "Candidate Budget",
+          "type": "integer"
+        },
+        "generator_profile": {
+          "default": "default",
+          "title": "Generator Profile",
+          "type": "string"
+        },
+        "max_files_changed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Files Changed"
+        },
+        "max_inserted_lines": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Inserted Lines"
+        },
+        "max_model_calls": {
+          "default": 0,
+          "title": "Max Model Calls",
+          "type": "integer"
+        },
+        "max_payload_chars": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Payload Chars"
+        },
+        "selection_policy": {
+          "default": "semantic_fit_then_deterministic_tiebreak",
+          "title": "Selection Policy",
+          "type": "string"
+        },
+        "tier": {
+          "title": "Tier",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tier"
+      ],
+      "title": "PlanTierProfile",
+      "type": "object"
+    },
     "PlanVariant": {
       "additionalProperties": false,
       "properties": {
+        "base_variant_id": {
+          "default": "",
+          "title": "Base Variant Id",
+          "type": "string"
+        },
+        "candidate_budget": {
+          "default": 1,
+          "title": "Candidate Budget",
+          "type": "integer"
+        },
         "carrier": {
           "anyOf": [
             {
@@ -183,6 +360,11 @@
           "default": null,
           "title": "Carrier"
         },
+        "condition_id": {
+          "default": "",
+          "title": "Condition Id",
+          "type": "string"
+        },
         "edit_count": {
           "default": 0,
           "title": "Edit Count",
@@ -194,6 +376,11 @@
           },
           "title": "Edit Paths",
           "type": "array"
+        },
+        "generator_profile": {
+          "default": "default",
+          "title": "Generator Profile",
+          "type": "string"
         },
         "goal": {
           "default": "none",
@@ -245,6 +432,11 @@
           "default": null,
           "title": "Reproduction Status"
         },
+        "selection_policy": {
+          "default": "semantic_fit_then_deterministic_tiebreak",
+          "title": "Selection Policy",
+          "type": "string"
+        },
         "source_url": {
           "anyOf": [
             {
@@ -256,6 +448,23 @@
           ],
           "default": null,
           "title": "Source Url"
+        },
+        "target_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Ref"
+        },
+        "tier": {
+          "default": "T0",
+          "title": "Tier",
+          "type": "string"
         },
         "variant_id": {
           "title": "Variant Id",
@@ -304,6 +513,9 @@
       "title": "Dataset Root",
       "type": "string"
     },
+    "generation": {
+      "$ref": "#/$defs/PlanGeneration"
+    },
     "invariants": {
       "$ref": "#/$defs/PlanInvariants"
     },
@@ -339,7 +551,7 @@
       "type": "string"
     },
     "schema_version": {
-      "default": "1.1",
+      "default": "2.0",
       "title": "Schema Version",
       "type": "string"
     },

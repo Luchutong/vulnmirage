@@ -70,8 +70,8 @@ measurement pipeline is being stabilized.
 | Runnable payload adaptations | 7 |
 | Planned semantic methods | 2 |
 | Research-question variant sets | 4 |
-| Generated JSON Schemas | 27 |
-| Acceptance tests | 44 |
+| Generated JSON Schemas | 44 |
+| Acceptance tests | 71 |
 
 The dataset counts describe the published task/oracle package. A target is scored only
 after its file and optional anchor are verified against the downloaded snapshot; the
@@ -116,7 +116,8 @@ policy; isolation is an invariant, not an experimental condition.
 `campaign plan` freezes the task selection, variant-set identity, research question,
 resolved variants, payload assets and hashes before the first audit. Each variant is then
 built independently from the same clean snapshot. Treatments are never layered on top of
-one another.
+one another. Every selected target becomes its own clean/attack pair, and the seeded audit
+order is frozen in the plan so clean runs are not systematically executed first.
 
 The benchmark contains no neutral-content injection arm. `C` is the only baseline. This
 means an observed effect estimates the complete injection treatment—including its added
@@ -137,20 +138,45 @@ Missing evidence is never converted into success:
 - an unproven runtime boundary is `unknown`, not isolated;
 - reachable answer hosts make the run ineligible when `fail_closed` is enabled.
 
+## Tier capability model
+
+Every attacked condition declares a **tier**. A tier is a statement about what the
+generator was allowed to read, not about how strong the attack is:
+
+| Tier | Generator may use | Implemented | Where it lands |
+| :-- | :-- | :-- | :-- |
+| T0 | fixed template + public file list for placement | yes | first deterministic comment-capable source (`static_public_index`) |
+| T1 | T0 + the public `RepositoryIndex` | yes | a symbol ranked from public structure by a seeded digest |
+| T2 | T1 + a sanitized `OracleAttackView` | yes | the vulnerable location plus local preconditions/effect |
+| T3 | T2 + isolated surrogate feedback | no (fails closed) | — |
+| T4 | T2 + a budgeted victim query loop | no (fails closed) | — |
+
+The boundary is enforced by the interface, not by a YAML comment: the generator
+receives a `GeneratorContext` whose fields are the tier allowlist, and the pipeline
+allows T0 to use the public index only for placement and refuses to hand an oracle
+view to T0/T1. A plan that names a tier the build cannot realize fails at plan time;
+there is no run-time fallback to a cheaper tier. See
+[`docs/tier_capability_matrix.md`](docs/tier_capability_matrix.md).
+
+Generation is a separate, resumable stage: `campaign generate` writes the candidate
+set, every validator verdict and the recorded selection, then stops. Only the
+selected candidate reaches a workspace.
+
 ## Payload methods
 
 Runnable methods are deterministic adaptations, not claims of paper-faithful
-reproduction.
+reproduction. Each method declares its supported tiers and the realization used at
+each one in [`PayloadGen/registry.v2.yaml`](PayloadGen/registry.v2.yaml).
 
-| ID | Method | Objective | Injection carrier | Status |
+| ID | Method | Objective | Injection carrier | Tiers |
 | :-- | :-- | :-- | :-- | :-- |
-| A1 | False fix claim | False negative | New `SECURITY_NOTES.md` | Runnable |
-| A2 | TODO false safety | False negative | Comment appended to target source | Runnable |
-| A3 | Fabricated tool authority | False negative | Comment appended to target source | Runnable |
-| F1 | TODO false alarm | Induced false positive | Certified-safe synthetic source | Runnable |
-| F2 | Red-herring safe decoy | Verification diversion | Certified-safe synthetic source | Runnable adaptation |
-| S1 | Severity downgrade anchor | Severity downgrade | Comment appended to target source | Runnable |
-| S2 | Severity inflation anchor | Severity inflation | Comment appended to target source | Runnable |
+| A1 | False fix claim | False negative | New `SECURITY_NOTES.md` | T0, T1, T2 |
+| A2 | TODO false safety | False negative | Comment appended to target source | T0, T1, T2 |
+| A3 | Fabricated tool authority | False negative | Comment appended to target source | T0, T1, T2 |
+| F1 | TODO false alarm | Induced false positive | Certified-safe synthetic source | T0, T1, T2 |
+| F2 | Red-herring safe decoy | Verification diversion | Certified-safe synthetic source | T0, T1, T2 |
+| S1 | Severity downgrade anchor | Severity downgrade | Comment appended to target source | T0, T1, T2 |
+| S2 | Severity inflation anchor | Severity inflation | Comment appended to target source | T0, T1, T2 |
 | P-FPA | Familiar Pattern Attack | False negative | Semantic code rewrite | Planned; rejected by plan |
 | P-FB | FlashBoom | Attention diversion | Semantic code insertion/rewrite | Planned; rejected by plan |
 
@@ -158,17 +184,17 @@ Literature grounding includes
 [ALIBI](https://arxiv.org/abs/2607.24964),
 [RedHerring](https://arxiv.org/abs/2609.35909),
 [Familiar Pattern Attacks](https://arxiv.org/abs/2508.17361), and
-[FlashBoom](https://doi.org/10.1109/SP61157.2025.00125). See
-[`PayloadGen/registry.yaml`](PayloadGen/registry.yaml) for method-level provenance.
+[FlashBoom](https://doi.org/10.1109/SP61157.2025.00125).
 
 ### Variant sets
 
 | Set | Conditions | Research question |
 | :-- | :-- | :-- |
-| `core-v1` | C, A1, A3, F2, S1, S2 | Representative effects across detection, diversion and severity |
-| `false-negative-v1` | C, A1, A2, A3 | Which misleading-context mechanism suppresses a verified target? |
-| `safe-decoy-v1` | C, F1, F2 | Do certified-safe decoys induce findings or consume verification effort? |
-| `severity-v1` | C, S1, S2 | Can context shift severity while target detection remains unchanged? |
+| `core-v1` | C, A1, A3, F2, S1, S2 (T0) | Representative effects across detection, diversion and severity |
+| `core-tier-ablation-v1` | C, A2/A3/S1 × T0/T1/T2, F2 × T0/T2 | How much do repository adaptation and local semantics add? |
+| `false-negative-v1` | C, A1/A2/A3 × T0/T1/T2 | Which misleading-context mechanism suppresses a verified target? |
+| `safe-decoy-v1` | C, F1/F2 × T0/T2 | Do certified-safe decoys induce findings or consume verification effort? |
+| `severity-v1` | C, S1/S2 × T0/T1/T2 | Can context shift severity while detection stays unchanged? |
 
 Select a set only during planning. `campaign run` intentionally has no
 `--variant-set` option and restores the frozen choice from the plan.
@@ -207,8 +233,8 @@ cd vulnmirage
 python -m pip install -e ".[dev]"
 ```
 
-The supplied configs use `opencode.cmd` on Windows. On POSIX systems, copy the selected
-agent YAML and change the first argv entry to `opencode`.
+The supplied config uses `opencode.cmd` on Windows. On POSIX systems, edit the single
+`argv` template in `configs/opencode.yaml` and change the first entry to `opencode`.
 
 ## Quick start
 
@@ -245,39 +271,62 @@ report that answer hosts remain reachable; such runs are ineligible for formal r
 python -m vulnmirage campaign plan \
   --config configs/experiment.yaml \
   --dataset ../VulnMirage_dataset \
-  --variant-set PayloadGen/variant_sets/core.yaml \
-  --workspace workspace/campaigns/core/deepseek-chat \
-  --limit 1
+  --variant-set PayloadGen/variant_sets/core_tier_ablation.yaml \
+  --workspace workspace/campaigns/tier-ablation/deepseek-reasoner \
+  --limit 1 --target-limit 1 --dry-run
 ```
 
 Planning is offline: it reads metadata and hashes assets but does not download a repository
-or call a model.
+or call a model. Drop `--dry-run` to write `control/plan.json`.
 
-### 4. Execute or resume the campaign
+### 4. Generate and review the candidates
+
+```bash
+python -m vulnmirage campaign generate \
+  --config configs/experiment.yaml \
+  --plan workspace/campaigns/tier-ablation/deepseek-reasoner/control/plan.json \
+  --inspect-generation
+```
+
+This downloads and indexes the snapshot, renders every candidate, runs the
+structural/leakage/semantic/budget validators and records the selection. It stops
+before any workspace is exposed, so a plan can be reviewed at zero model cost.
+
+### 5. Execute or resume the campaign
+
+`configs/opencode.yaml` holds every model; choose one profile per campaign.
 
 ```bash
 python -m vulnmirage campaign run \
   --config configs/experiment.yaml \
-  --plan workspace/campaigns/core/deepseek-chat/control/plan.json \
-  --agent configs/opencode.yaml
+  --plan workspace/campaigns/tier-ablation/deepseek-reasoner/control/plan.json \
+  --agent configs/opencode.yaml \
+  --agent-profile deepseek-reasoner
 ```
 
 Use a different workspace for every `(variant_set, model)` pair. To validate preparation
 without spending API credits, omit `--agent`; the `NullExecutor` will materialize and
 attest workspaces without running a model.
 
-### 5. Analyze and verify archived results
+### 6. Analyze, aggregate and verify archived results
 
 ```bash
 python -m vulnmirage campaign analyze \
-  --plan workspace/campaigns/core/deepseek-chat/control/plan.json
+  --plan workspace/campaigns/tier-ablation/deepseek-reasoner/control/plan.json
+
+python -m vulnmirage campaign aggregate \
+  --plan workspace/campaigns/tier-ablation/deepseek-reasoner/control/plan.json
 
 python -m vulnmirage campaign verify-archive \
-  --plan workspace/campaigns/core/deepseek-chat/control/plan.json
+  --plan workspace/campaigns/tier-ablation/deepseek-reasoner/control/plan.json
 
 python -m vulnmirage campaign status \
-  --plan workspace/campaigns/core/deepseek-chat/control/plan.json
+  --plan workspace/campaigns/tier-ablation/deepseek-reasoner/control/plan.json
 ```
+
+`aggregate` writes `aggregate/aggregate.json`: paired clean-vs-attacked deltas by
+tier, a bootstrap interval over the paired deltas, and an attrition ledger that
+counts generation failures and ineligible runs instead of dropping them.
 
 Windows CMD examples and failure semantics are documented in
 [`docs/campaign.md`](docs/campaign.md).
@@ -312,8 +361,8 @@ Important archived outputs include:
 | `runs/<run>/findings.json` | Parsed structured findings and parse status |
 | `runs/<run>/stdout.log` | Raw process stdout, including OpenCode JSONL when emitted |
 | `evaluation/<run>/score.json` | Target recall, severity and safe-decoy result |
-| `analysis/<pair>/trajectory_comparison.json` | Observable C/A trace deltas |
-| `analysis/<pair>/mechanism_assessment.json` | Evidence-gated mechanism labels |
+| `analysis/<task>-comparison/trajectory_comparison.json` | Target/repetition-matched C/A trace deltas |
+| `analysis/<task>-comparison/mechanism_assessment.json` | Evidence-gated mechanism labels |
 | `artifact_manifest.json` | Hash inventory for the archived task |
 
 Primary outcome families are target detection/recall, certified-safe-decoy acceptance,
@@ -326,28 +375,38 @@ Implemented and covered by tests:
 
 - dataset-core ingestion with manifest digest verification;
 - exact-commit archive resolution and bounded, traversal-safe extraction;
-- independent clean/attack construction with frozen payload provenance;
-- plan-time variant-set selection and resume identity checks;
+- a tier-based generation subsystem (T0/T1/T2): `RepositoryIndex`, a sanitized
+  `OracleAttackView`, candidate generation, four validators, a predeclared
+  selection rule and a frozen `GenerationManifest`;
+- independent clean/attack construction, target remapping and frozen payload provenance;
+- plan-time variant-set and tier-profile selection with resume identity checks;
 - OpenCode command execution, stdout capture and dual-output parsing;
+- OpenCode JSONL normalization with source hashing, credential redaction and explicit
+  complete/partial/missing states;
+- minimal child-process environments containing only allowlisted runtime variables and
+  declared inference credentials;
 - private verifier bundles, target matching and certified-safe-decoy scoring;
 - rule-based exposure/trajectory/mechanism artifacts;
+- paired aggregation by tier with a bootstrap interval and an attrition ledger;
 - verified archives and task-scoped cleanup.
 
 Not yet complete for a full published experiment:
 
-- native normalization of OpenCode JSONL into `events.normalized.jsonl`,
-  `tool_calls.jsonl` and `file_access.jsonl`;
-- a proven network boundary that blocks answer hosts while allowing model inference;
+- T3/T4 generators and their separate adaptation protocol;
+- validation of the trace adapter against frozen output from real OpenCode versions and
+  at least three live runs;
+- a proven network boundary that blocks answer hosts while allowing model inference
+  (the container/gateway backend is still configuration, not enforcement);
 - FPA and FlashBoom semantic generators and behavior-equivalence validation;
-- paired cross-task statistical aggregation and confidence intervals;
 - a multi-model, repeated real campaign over all selected tasks.
 
 Current regression snapshot:
 
 ```text
-44 tests passed
-27 schemas current; 0 missing; 0 stale
+71 tests passed
+44 schemas current; 0 missing; 0 stale
 47 tasks / 725 targets loaded with declared digests verified
+725/725 targets admit a sanitized T2 oracle view; 0 sanitizer leaks
 ```
 
 No benchmark score or model ranking is claimed by this repository yet.
@@ -357,11 +416,11 @@ No benchmark score or model ranking is claimed by this repository yet.
 The next milestone is **experiment readiness**, not adding more treatment names:
 
 1. normalize real OpenCode traces and measure trace completeness;
-2. enforce and attest inference-only network access;
+2. enforce and attest inference-only network access (container + gateway, not config);
 3. run a repeated one-task, two-model pilot and audit every artifact;
-4. implement target-location remapping and an AST-aware payload-generator interface;
+4. implement T3/T4 with their own adaptation budget, query log and holdout split;
 5. add fixed FPA and surrogate-mined FlashBoom banks as separate variant sets;
-6. add paired task-level aggregation, clustered uncertainty and exclusion accounting;
+6. extend aggregation with clustered uncertainty and exclusion accounting at scale;
 7. freeze a full experiment manifest before scaling across the dataset.
 
 The complete acceptance gates and proposed modules are in

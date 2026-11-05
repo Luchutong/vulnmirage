@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One executable condition: the clean baseline or one attacked variant.",
+  "properties": {
+    "candidate_budget": {
+      "default": 1,
+      "maximum": 64,
+      "minimum": 1,
+      "title": "Candidate Budget",
+      "type": "integer"
+    },
+    "condition_id": {
+      "title": "Condition Id",
+      "type": "string"
+    },
+    "generator_profile": {
+      "default": "default",
+      "title": "Generator Profile",
+      "type": "string"
+    },
+    "kind": {
+      "default": "attacked",
+      "enum": [
+        "clean",
+        "attacked"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "method_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Method Id"
+    },
+    "selection_policy": {
+      "default": "semantic_fit_then_deterministic_tiebreak",
+      "title": "Selection Policy",
+      "type": "string"
+    },
+    "tier": {
+      "default": "T0",
+      "enum": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "title": "Tier",
+      "type": "string"
+    },
+    "victim_feedback": {
+      "default": false,
+      "title": "Victim Feedback",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "condition_id"
+  ],
+  "title": "ConditionSpec",
+  "type": "object"
+}

@@ -39,14 +39,39 @@ def benchmark_schema_files() -> dict[str, Any]:
         TaskManifest,
         VariantFreeze,
     )
-    from .campaign.plan import PlanDoc, PlanTask, PlanVariant, VariantSetDefinition
+    from .campaign.plan import (
+        PlanDoc,
+        PlanGeneration,
+        PlanTask,
+        PlanVariant,
+        VariantSetDefinition,
+    )
     from .campaign.state import TaskState
     from .campaign.variants import VariantBuild
+    from .evaluation.aggregate import AggregateResult, PairedComparison
     from .evaluation.parser import OutputConsistency
     from .isolation.attestation import IsolationAttestation
     from .isolation.channels import LeakageControlReport
     from .isolation.network import EgressProbeResult
     from .mechanism.analysis import ComparisonReport, ExposureReport, MechanismReport
+    from .payloadgen import (
+        CandidatePayload,
+        CandidateValidation,
+        ConditionSpec,
+        ExperimentCell,
+        GenerationManifest,
+        OracleAttackView,
+        RepositoryIndex,
+        TargetRemap,
+    )
+    from .payloadgen.contracts import AdaptationQuery
+    from .trace.models import (
+        FileAccessRecord,
+        NormalizedEvent,
+        ToolCallRecord,
+        TraceCompleteness,
+        TraceManifest,
+    )
     from .verifier.bundle import BundleManifest
     from .verifier.service import RunScore, VerifierAttestation
     from .verifier.targets import TargetSet
@@ -56,6 +81,7 @@ def benchmark_schema_files() -> dict[str, Any]:
         "campaign_plan.schema.json": PlanDoc,
         "campaign_plan_task.schema.json": PlanTask,
         "campaign_plan_variant.schema.json": PlanVariant,
+        "campaign_plan_generation.schema.json": PlanGeneration,
         "campaign_variant_set.schema.json": VariantSetDefinition,
         "campaign_state.schema.json": TaskState,
         "campaign_source_manifest.schema.json": SourceManifest,
@@ -64,6 +90,17 @@ def benchmark_schema_files() -> dict[str, Any]:
         "campaign_variants_frozen.schema.json": VariantFreeze,
         "campaign_run_record.schema.json": RunRecord,
         "campaign_artifact_entry.schema.json": ArtifactEntry,
+        "condition_spec.schema.json": ConditionSpec,
+        "experiment_cell.schema.json": ExperimentCell,
+        "repository_index.schema.json": RepositoryIndex,
+        "oracle_attack_view.schema.json": OracleAttackView,
+        "candidate_payload.schema.json": CandidatePayload,
+        "candidate_validation.schema.json": CandidateValidation,
+        "generation_manifest.schema.json": GenerationManifest,
+        "target_remap.schema.json": TargetRemap,
+        "adaptation_query.schema.json": AdaptationQuery,
+        "aggregate_result.schema.json": AggregateResult,
+        "paired_comparison.schema.json": PairedComparison,
         "isolation_attestation.schema.json": IsolationAttestation,
         "isolation_egress_probe.schema.json": EgressProbeResult,
         "leakage_controls.schema.json": LeakageControlReport,
@@ -76,6 +113,11 @@ def benchmark_schema_files() -> dict[str, Any]:
         "exposure_report.schema.json": ExposureReport,
         "trajectory_comparison.schema.json": ComparisonReport,
         "mechanism_assessment.schema.json": MechanismReport,
+        "trace_event.schema.json": NormalizedEvent,
+        "trace_tool_call.schema.json": ToolCallRecord,
+        "trace_file_access.schema.json": FileAccessRecord,
+        "trace_manifest.schema.json": TraceManifest,
+        "trace_completeness.schema.json": TraceCompleteness,
     }
 
 

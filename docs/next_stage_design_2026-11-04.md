@@ -110,17 +110,19 @@ payload 路径
 | variant sets | 已完成 | core、false-negative、safe-decoy、severity |
 | planned 方法 fail-closed | 已完成 | FPA/FlashBoom 被 plan 阶段拒绝 |
 | OpenCode 外部进程执行 | 已完成 | DeepSeek/GLM/Qwen 配置，stdout/stderr 落盘 |
+| OpenCode trace 规范化 | 已完成（待真实 fixture 验收） | 原始 stdout 哈希、规范化事件/tool/file-access、完整性状态、密钥脱敏 |
+| Agent 环境最小化 | 已完成 | 只复制 agent 白名单运行变量与声明的模型凭据；记录仅含变量名 |
 | 双输出解析 | 已完成 | 不修复模型答案，格式失败不转成零 finding |
 | 独立 verifier | 已完成 | bundle 哈希、oracle 拒绝、target/decoy 匹配 |
 | 机制分析契约 | 已完成 | exposure/trajectory/mechanism/case-analysis |
 | 状态机、归档、清理 | 已完成 | resume identity、artifact manifest、scoped cleanup |
-| 回归基线 | 已完成 | 44 tests；27 schemas current |
+| 回归基线 | 已完成 | 71 tests；44 schemas current（2026-11-05，含 T0–T2 生成子系统） |
 
 ### 3.2 部分完成
 
 | 能力 | 已有部分 | 缺口 |
 | :-- | :-- | :-- |
-| Agent trace | 原始 OpenCode JSONL stdout 已保存；分析器能读取标准化 trace | 尚无 OpenCode → normalized events/tool/file-access 的原生适配器 |
+| Agent trace | OpenCode → normalized events/tool/file-access 原生适配器、manifest 与 completeness 已接入 run archive | 尚需真实 OpenCode fixture 和至少三次 live run 验证事件覆盖率 |
 | 网络隔离 | 环境净化、离线提示、实时 egress probe、fail-closed | 普通宿主不能强制阻断；需要代理或容器边界 |
 | 多模型实验 | 4 个 agent YAML 已配置 | 尚未形成同一冻结实验上的重复真实运行 |
 | 机制分析 | 规则和 schema 已完成 | 没有 trace 时只能输出 unknown/insufficient |
@@ -130,7 +132,7 @@ payload 路径
 
 - FPA 的语言感知语义改写、位置重映射与行为等价验证；
 - FlashBoom 的 surrogate attention mining、自包含化和迁移评测；
-- OpenCode trace 完整性统计与事件 schema 版本化；
+- 真实 OpenCode 版本上的 trace 覆盖率基线与兼容性 fixture；
 - 推理 API allowlist 之外的强制网络阻断；
 - 跨 task 的配对统计、cluster bootstrap 和模型比较；
 - 预注册式的完整 experiment manifest；
@@ -166,7 +168,7 @@ payload 路径
 
 ## 5. 工作包 WP0：真实实验可观测性
 
-### 5.1 OpenCode trace adapter
+### 5.1 OpenCode trace adapter（代码已实现，真实运行验收待完成）
 
 新增建议：
 
@@ -184,7 +186,12 @@ src/vulnmirage/trace/
 - `tool_calls.jsonl`：工具名、参数摘要、状态、耗时、关联事件；
 - `file_access.jsonl`：规范化路径、读取/搜索类型、内容是否返回模型；
 - `trace_manifest.json`：原始日志 SHA-256、适配器版本、行数、丢弃原因；
-- `trace_completeness.json`：可解析率、未知事件率、tool 配对率、路径覆盖率。
+- `trace_completeness.json`：终止事件、最终文本、tool terminal rate、未知事件与无效行状态。
+
+当前实现位于 `src/vulnmirage/trace/`，并在每次 run 后、临时 workspace 清理前生成
+上述五类派生产物。它不会把 shell 命令中的路径推断为文件读取；只有已知文件工具
+且 terminal result 含输出时，才记录 `content_returned_to_model: true`。当前测试使用
+固定合成 JSONL，真实 OpenCode 输出 fixture 仍是 G1 的必要条件。
 
 事件规范化必须满足：
 
@@ -484,8 +491,8 @@ aggregation_plan_version: ...
 
 ### Gate G0：当前回归
 
-- 44 tests 全部通过；
-- 27 schemas 无 missing/stale；
+- 50 tests 全部通过；
+- 32 schemas 无 missing/stale；
 - dataset manifest 校验通过。
 
 ### Gate G1：Trace-ready
@@ -529,7 +536,7 @@ aggregation_plan_version: ...
 
 | 优先级 | 工作 | 完成定义 |
 | :-- | :-- | :-- |
-| P0 | OpenCode trace adapter | G1 通过 |
+| P0 | OpenCode trace adapter 真实 fixture 与 live-run 验收 | G1 通过 |
 | P0 | 强制网络边界 | G2 通过 |
 | P0 | 真实双模型最小 pilot | G4 通过 |
 | P1 | 聚合/eligibility 模块 | 可从归档生成 paired summary |
@@ -583,11 +590,9 @@ aggregation_plan_version: ...
 
 下一次代码修改应严格按下面顺序：
 
-1. 收集并冻结一份真实 OpenCode JSONL fixture；
-2. 实现 trace models、adapter、manifest 和 completeness；
-3. 把适配器接入 run archive 与 mechanism analysis；
-4. 建立 inference-only 网络边界并通过 egress 测试；
-5. 运行一任务、两个模型、一个重复的最小 pilot；
-6. 修复 pilot 暴露的输出、trace、隔离和归档问题；
-7. 实现 aggregate 与 experiment manifest；
-8. 完成统计 pilot 后再开发 FPA/FlashBoom，不让新方法掩盖主流程缺陷。
+1. 从当前 OpenCode 版本收集并冻结真实 JSONL fixture，补齐版本漂移测试；
+2. 建立 inference-only 网络边界并通过 egress 测试；
+3. 运行一任务、两个模型、一个重复的最小 pilot；
+4. 修复 pilot 暴露的输出、trace、隔离和归档问题；
+5. 实现 aggregate 与 experiment manifest；
+6. 完成统计 pilot 后再开发 FPA/FlashBoom，不让新方法掩盖主流程缺陷。

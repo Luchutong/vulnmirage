@@ -47,17 +47,20 @@ def _check_config(loaded: LoadedConfig) -> dict[str, Any]:
         contract = output_contract_section(template)
     except Exception as exc:  # noqa: BLE001
         return {"status": "fail", "detail": f"task template has no {OUTPUT_CONTRACT_MARKER} section: {exc}"}
-    if not loaded.config.campaign.variants:
-        return {
-            "status": "warn",
-            "detail": "no variants declared; the plan will only run the clean baseline",
-        }
-    kinds = {item.kind for item in campaign.variants}
+    from .campaign.plan import _variant_specs
+
+    try:
+        variants = _variant_specs(loaded)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "fail", "detail": f"variant set could not be loaded: {exc}"}
+    if not variants:
+        return {"status": "fail", "detail": "no variants declared"}
+    kinds = {item.kind for item in variants}
     if "clean" not in kinds:
         return {"status": "fail", "detail": "variants declare no clean baseline"}
     return {
         "status": "pass",
-        "detail": f"{len(campaign.variants)} variant(s) declared, contract section present",
+        "detail": f"{len(variants)} variant(s) declared, contract section present",
         "contract_chars": len(contract),
         "config_sha256": loaded.sha256,
     }
@@ -144,13 +147,15 @@ def _check_egress(loaded: LoadedConfig) -> dict[str, Any]:
     return {"status": "pass", "detail": f"no answer host answered (mode={config.mode})", "probe": payload}
 
 
-def _check_agent(loaded: LoadedConfig, agent_path: Path | None) -> dict[str, Any]:
+def _check_agent(
+    loaded: LoadedConfig, agent_path: Path | None, agent_profile: str | None = None
+) -> dict[str, Any]:
     if agent_path is None:
         return {
             "status": "skip",
             "detail": "no --agent given: campaign run will prepare and attest workspaces only",
         }
-    agent = load_agent_config(agent_path)
+    agent = load_agent_config(agent_path, profile=agent_profile)
     missing = agent.config.missing_env()
     executable = agent.config.argv[0] if agent.config.argv else ""
     resolved = shutil.which(executable) or (
@@ -158,9 +163,14 @@ def _check_agent(loaded: LoadedConfig, agent_path: Path | None) -> dict[str, Any
     )
     payload = {
         "path": agent_path.as_posix(),
+        "profile": agent.profile,
+        "profiles": list(agent.profiles),
         "mode": agent.config.mode,
         "argv_head": agent.config.argv[:3],
         "requires_env": agent.config.requires_env,
+        "fixed_child_env_names": sorted(agent.child_env),
+        "external_file_sha256": agent.external_file_sha256,
+        "effective_agent_config_sha256": agent.sha256,
     }
     if missing:
         return {"status": "fail", "detail": "missing credentials: " + ", ".join(missing), **payload}
@@ -169,13 +179,18 @@ def _check_agent(loaded: LoadedConfig, agent_path: Path | None) -> dict[str, Any
     return {"status": "pass", "detail": f"executable resolved, {len(agent.config.argv)} argv item(s)", **payload}
 
 
-def run_doctor(loaded: LoadedConfig, *, agent_path: Path | None = None) -> dict[str, Any]:
+def run_doctor(
+    loaded: LoadedConfig,
+    *,
+    agent_path: Path | None = None,
+    agent_profile: str | None = None,
+) -> dict[str, Any]:
     checks = {
         "config": _check_config(loaded),
         "dataset": _check_dataset(loaded),
         "archive": _check_archive(loaded),
         "egress": _check_egress(loaded),
-        "agent": _check_agent(loaded, agent_path),
+        "agent": _check_agent(loaded, agent_path, agent_profile),
     }
     failures = [name for name, item in checks.items() if item["status"] == "fail"]
     warnings = [name for name, item in checks.items() if item["status"] == "warn"]

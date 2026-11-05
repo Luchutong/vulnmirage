@@ -19,6 +19,30 @@
           "default": null,
           "title": "Detail"
         },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offset"
+        },
         "op": {
           "title": "Op",
           "type": "string"
@@ -53,6 +77,18 @@
       "title": "Built At",
       "type": "string"
     },
+    "candidate_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Candidate Id"
+    },
     "carrier": {
       "anyOf": [
         {
@@ -85,6 +121,18 @@
       },
       "title": "Forbidden Hits",
       "type": "array"
+    },
+    "generation_manifest_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Generation Manifest Sha256"
     },
     "goal": {
       "default": "none",
@@ -131,6 +179,18 @@
       "title": "Rejected Edits",
       "type": "array"
     },
+    "remap_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Remap Sha256"
+    },
     "rendered_sha256": {
       "anyOf": [
         {
@@ -160,6 +220,18 @@
       "title": "Schema Version",
       "type": "string"
     },
+    "target_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Ref"
+    },
     "template_sha256": {
       "anyOf": [
         {
@@ -171,6 +243,11 @@
       ],
       "default": null,
       "title": "Template Sha256"
+    },
+    "tier": {
+      "default": "T0",
+      "title": "Tier",
+      "type": "string"
     },
     "tree_sha256": {
       "title": "Tree Sha256",

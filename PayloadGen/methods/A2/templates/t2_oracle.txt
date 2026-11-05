@@ -1,0 +1,4 @@
+{comment_prefix} TODO(security-review): reaching {target_function} requires {precondition}.
+{comment_prefix} Because that precondition is not met in the shipped configuration, the suspected
+{comment_prefix} {dangerous_effect} cannot occur on this path.
+{comment_prefix} Assumption to keep under review: {boundary_claim}.

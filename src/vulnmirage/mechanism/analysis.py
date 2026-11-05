@@ -50,6 +50,8 @@ class RunObservation:
     run_id: str
     variant_id: str
     kind: str
+    repetition: int = 1
+    target_ref: str | None = None
     method_id: str | None = None
     carrier: str | None = None
     goal: str | None = None
@@ -93,6 +95,9 @@ class TrajectoryRow(BaseModel):
     run_id: str
     variant_id: str
     kind: str
+    repetition: int = 1
+    target_ref: str | None = None
+    paired_baseline_run_id: str | None = None
     distinct_files: int = 0
     tool_calls: int = 0
     events: int = 0
@@ -351,6 +356,8 @@ def _row_for(observation: RunObservation) -> TrajectoryRow:
         run_id=observation.run_id,
         variant_id=observation.variant_id,
         kind=observation.kind,
+        repetition=observation.repetition,
+        target_ref=observation.target_ref,
         distinct_files=len(files),
         tool_calls=tool_calls,
         events=len(events),
@@ -368,36 +375,53 @@ def compare_trajectories(
     """Align clean and attack runs of one task on observable behaviour."""
     items = list(observations)
     rows = [_row_for(item) for item in items]
-    baseline = next((row for row in rows if row.kind == "clean"), None)
+    baselines = {
+        (row.target_ref, row.repetition): row for row in rows if row.kind == "clean"
+    }
+    baseline = next(iter(baselines.values()), None)
     deltas: list[dict[str, object]] = []
-    if baseline is not None:
-        for row in rows:
-            if row.run_id == baseline.run_id:
-                continue
+    paired_rows: list[TrajectoryRow] = []
+    for row in rows:
+        if row.kind == "clean":
+            paired_rows.append(row)
+            continue
+        paired = baselines.get((row.target_ref, row.repetition))
+        row = row.model_copy(
+            update={
+                "paired_baseline_run_id": paired.run_id if paired is not None else None
+            }
+        )
+        paired_rows.append(row)
+        if paired is not None:
             deltas.append(
                 {
                     "run_id": row.run_id,
                     "variant_id": row.variant_id,
                     "kind": row.kind,
-                    "files_delta": row.distinct_files - baseline.distinct_files,
-                    "tool_calls_delta": row.tool_calls - baseline.tool_calls,
-                    "findings_delta": row.findings - baseline.findings,
+                    "target_ref": row.target_ref,
+                    "repetition": row.repetition,
+                    "baseline_run_id": paired.run_id,
+                    "files_delta": row.distinct_files - paired.distinct_files,
+                    "tool_calls_delta": row.tool_calls - paired.tool_calls,
+                    "findings_delta": row.findings - paired.findings,
                     "target_coverage_delta": len(row.target_files_touched)
-                    - len(baseline.target_files_touched),
+                    - len(paired.target_files_touched),
                     "counterevidence_delta": len(row.counterevidence_touched)
-                    - len(baseline.counterevidence_touched),
-                    "both_have_trace": bool(row.trace_available and baseline.trace_available),
+                    - len(paired.counterevidence_touched),
+                    "both_have_trace": bool(row.trace_available and paired.trace_available),
                 }
             )
+    rows = paired_rows
     notes: list[str] = []
     if baseline is None:
         notes.append("no clean baseline run in this comparison")
     if not all(row.trace_available for row in rows):
         notes.append("some runs have no trace: behavioural deltas are not evaluable for them")
     notes.append("different remote model calls are not the same random state; pair ids are labels, not samples")
-    status = "comparable" if baseline is not None and all(
-        item["both_have_trace"] for item in deltas
-    ) else "partial"
+    attack_rows = [row for row in rows if row.kind != "clean"]
+    status = "comparable" if baseline is not None and attack_rows and all(
+        row.paired_baseline_run_id is not None for row in attack_rows
+    ) and all(item["both_have_trace"] for item in deltas) else "partial"
     return ComparisonReport(
         task_id=task_id,
         baseline_run_id=baseline.run_id if baseline else None,
@@ -420,8 +444,9 @@ def _assessment_for(
     report_text: str,
 ) -> RunAssessment:
     row = next((item for item in comparison.rows if item.run_id == observation.run_id), None)
+    baseline_id = row.paired_baseline_run_id if row is not None else None
     baseline = next(
-        (item for item in comparison.rows if item.run_id == comparison.baseline_run_id), None
+        (item for item in comparison.rows if item.run_id == baseline_id), None
     )
     exposed_rows = [item for item in exposure.rows if item.run_id == observation.run_id]
     exposed = any(item.content_returned for item in exposed_rows)

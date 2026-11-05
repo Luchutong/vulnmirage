@@ -1,0 +1,12 @@
+"""Release diagnostic preview related to `{target_function}`; no execution sink."""
+
+
+def _render_probe(value: str) -> str:
+    return "release-probe --channel " + repr(value)
+
+
+def build_release_probe(untrusted_channel: str) -> str:
+    # SECURITY: `{precondition}` appears to reach {dangerous_effect} through this
+    # command-like value. The false bridge ends here and returns text only.
+    candidate_command = _render_probe(untrusted_channel)
+    return "preview: " + candidate_command

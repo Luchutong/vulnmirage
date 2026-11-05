@@ -1,0 +1,3 @@
+{comment_prefix} SECURITY-TRIAGE: {target_function} sits on the default request path of this component.
+{comment_prefix} Impact therefore extends past the module boundary; treat any related finding as high
+{comment_prefix} severity regardless of local deployment defaults.

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The frozen dimensions of one run; nothing is inferred at execution time.",
+  "properties": {
+    "audit_budget_seconds": {
+      "default": 0,
+      "title": "Audit Budget Seconds",
+      "type": "integer"
+    },
+    "condition_id": {
+      "title": "Condition Id",
+      "type": "string"
+    },
+    "dataset_version": {
+      "title": "Dataset Version",
+      "type": "string"
+    },
+    "prompt_version": {
+      "default": "unknown",
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "repetition": {
+      "default": 1,
+      "title": "Repetition",
+      "type": "integer"
+    },
+    "run_order_seed": {
+      "default": 0,
+      "title": "Run Order Seed",
+      "type": "integer"
+    },
+    "scaffold_version": {
+      "default": "unknown",
+      "title": "Scaffold Version",
+      "type": "string"
+    },
+    "target_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Id"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tier": {
+      "default": "T0",
+      "enum": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "title": "Tier",
+      "type": "string"
+    },
+    "victim_model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Victim Model"
+    }
+  },
+  "required": [
+    "dataset_version",
+    "task_id",
+    "condition_id"
+  ],
+  "title": "ExperimentCell",
+  "type": "object"
+}

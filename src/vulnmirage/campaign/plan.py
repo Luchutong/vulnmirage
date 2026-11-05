@@ -25,18 +25,22 @@ from ..campaign.task_prompt import (
 from ..campaign.variants import default_variants
 from ..config import LoadedConfig, VariantSpecConfig
 from ..errors import CampaignError
-from ..hashing import atomic_write_json, sha256_file, sha256_text, utc_now_iso
+from ..hashing import atomic_write_json, sha256_file, sha256_text, stable_id, utc_now_iso
 from ..ingest.dataset_core import DatasetCore, load_dataset_core
 from ..repository.archive import resolve_archive_request
 
-PLAN_SCHEMA_VERSION = "1.1"
+PLAN_SCHEMA_VERSION = "2.0"
 
 
 class PlanVariant(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     variant_id: str
+    base_variant_id: str = ""
+    target_ref: str | None = None
+    condition_id: str = ""
     kind: str
+    tier: str = "T0"
     payload_id: str | None = None
     method_id: str | None = None
     reproduction_status: str | None = None
@@ -44,8 +48,36 @@ class PlanVariant(BaseModel):
     carrier: str | None = None
     goal: str = "none"
     knowledge: str = "public_context"
+    generator_profile: str = "default"
+    candidate_budget: int = 1
+    selection_policy: str = "semantic_fit_then_deterministic_tiebreak"
     edit_count: int = 0
     edit_paths: list[str] = Field(default_factory=list)
+
+
+class PlanTierProfile(BaseModel):
+    """The generation rules a tier is frozen with (design §5.1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tier: str
+    generator_profile: str = "default"
+    candidate_budget: int = 1
+    selection_policy: str = "semantic_fit_then_deterministic_tiebreak"
+    #: ``None`` means the method's own placement limit applies.
+    max_files_changed: int | None = None
+    max_inserted_lines: int | None = None
+    max_payload_chars: int | None = None
+    max_model_calls: int = 0
+
+
+class PlanGeneration(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed: int = 0
+    candidate_budget: int = 3
+    require_candidate_validation: bool = True
+    tier_profiles: dict[str, PlanTierProfile] = Field(default_factory=dict)
 
 
 class VariantSetDefinition(BaseModel):
@@ -57,6 +89,25 @@ class VariantSetDefinition(BaseModel):
     variant_set_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
     research_question: str = Field(min_length=1)
     variants: list[VariantSpecConfig]
+
+
+class PlanTarget(BaseModel):
+    """Opaque target identity frozen without publishing the oracle target id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_ref: str
+    ordinal: int = Field(ge=0)
+
+
+class PlanRunCell(BaseModel):
+    """One pre-randomized audit cell in the order it must execute."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    order: int = Field(ge=0)
+    repetition: int = Field(ge=1)
+    variant_id: str
 
 
 class PlanTask(BaseModel):
@@ -71,11 +122,14 @@ class PlanTask(BaseModel):
     primary_language: str | None = None
     target_count: int = 0
     eligible_target_count: int = 0
+    selected_target_count: int = 0
+    targets: list[PlanTarget] = Field(default_factory=list)
     source_prompt_sha256: str
     effective_prompt_sha256: str
     task_prompt_rule_version: str
     variants: list[PlanVariant] = Field(default_factory=list)
     repetitions: int = 1
+    run_order: list[PlanRunCell] = Field(default_factory=list)
 
 
 class PlanBudget(BaseModel):
@@ -126,6 +180,7 @@ class PlanDoc(BaseModel):
     research_question: str = ""
     payload_assets_sha256: dict[str, str] = Field(default_factory=dict)
     task_prompt_rule_version: str = TASK_PROMPT_RULE_VERSION
+    generation: PlanGeneration = Field(default_factory=PlanGeneration)
     tasks: list[PlanTask] = Field(default_factory=list)
     budget: PlanBudget = Field(default_factory=PlanBudget)
     invariants: PlanInvariants = Field(default_factory=PlanInvariants)
@@ -196,7 +251,14 @@ def _variant_specs(loaded: LoadedConfig) -> list[VariantSpecConfig]:
     return default_variants()
 
 
-def _plan_variant(spec: VariantSpecConfig, methods: dict[str, object]) -> PlanVariant:
+def _plan_variant(
+    spec: VariantSpecConfig,
+    methods: dict[str, object],
+    generation: PlanGeneration | None = None,
+    *,
+    variant_id: str | None = None,
+    target_ref: str | None = None,
+) -> PlanVariant:
     method = methods.get(str(spec.payload_id)) if spec.payload_id else None
     placement = getattr(method, "placement", None)
     output_path = getattr(method, "output_path", None)
@@ -212,18 +274,59 @@ def _plan_variant(spec: VariantSpecConfig, methods: dict[str, object]) -> PlanVa
         )
     else:
         edit_paths = sorted({edit.path for edit in spec.edits})
+    tier = str(spec.tier)
+    profile = generation.tier_profiles.get(tier) if generation else None
     return PlanVariant(
-        variant_id=spec.variant_id,
+        variant_id=variant_id or spec.variant_id,
+        base_variant_id=spec.variant_id,
+        target_ref=target_ref,
+        condition_id=variant_id or spec.variant_id,
         kind=spec.kind,
+        tier=tier,
         payload_id=spec.payload_id,
-        method_id=spec.method_id or getattr(method, "method_family", None),
+        method_id=(
+            spec.method_id
+            or getattr(method, "method_id", None)
+            or getattr(method, "method_family", None)
+        ),
         reproduction_status=getattr(method, "reproduction_status", None),
         source_url=getattr(method, "source_url", None),
         carrier=spec.carrier or getattr(method, "carrier", None),
         goal=getattr(method, "objective", spec.goal),
         knowledge=spec.knowledge,
+        generator_profile=(profile.generator_profile if profile else "default"),
+        candidate_budget=(profile.candidate_budget if profile else 1),
+        selection_policy=(
+            profile.selection_policy
+            if profile
+            else "semantic_fit_then_deterministic_tiebreak"
+        ),
         edit_count=(1 if spec.payload_id else len(spec.edits)),
         edit_paths=edit_paths,
+    )
+
+
+def plan_generation(loaded: LoadedConfig) -> PlanGeneration:
+    """Freeze the generation envelope: seed, tier profiles, budgets."""
+    generation = loaded.config.campaign.generation
+    profiles = {
+        tier: PlanTierProfile(
+            tier=profile.tier,
+            generator_profile=profile.generator_profile,
+            candidate_budget=profile.candidate_budget,
+            selection_policy=profile.selection_policy,
+            max_files_changed=profile.max_files_changed,
+            max_inserted_lines=profile.max_inserted_lines,
+            max_payload_chars=profile.max_payload_chars,
+            max_model_calls=profile.max_model_calls,
+        )
+        for tier, profile in sorted(generation.tier_profiles.items())
+    }
+    return PlanGeneration(
+        seed=generation.seed,
+        candidate_budget=generation.candidate_budget,
+        require_candidate_validation=generation.require_candidate_validation,
+        tier_profiles=profiles,
     )
 
 
@@ -248,10 +351,18 @@ def build_plan(
     task_ids: list[str] | None = None,
     limit: int | None = None,
     archive_root: str | Path | None = None,
+    target_limit: int | None = None,
     write: bool = True,
 ) -> PlanDoc:
     """Read the task index and freeze the campaign plan."""
     config = loaded.config
+    if limit is not None and limit < 1:
+        raise CampaignError("--limit must be at least 1", details={"limit": limit})
+    if target_limit is not None and not 1 <= target_limit <= 500:
+        raise CampaignError(
+            "--target-limit must be between 1 and 500",
+            details={"target_limit": target_limit},
+        )
     root = dataset_root or config.campaign.dataset_root
     workspace = Path(archive_root or config.campaign.archive_root)
     if not workspace.is_absolute():
@@ -281,6 +392,21 @@ def build_plan(
 
     specs = _variant_specs(loaded)
     variant_set = load_variant_set(loaded)
+    generation = plan_generation(loaded)
+    from ..tiers import is_implemented
+
+    for spec in specs:
+        if spec.kind != "attack":
+            continue
+        if not is_implemented(str(spec.tier)):
+            from ..errors import UnsupportedTierError
+
+            raise UnsupportedTierError(
+                "this build implements T0-T2 only; refusing to plan the condition",
+                details={"variant_id": spec.variant_id, "tier": spec.tier},
+            )
+        # A tier without a frozen profile would generate with an unstated budget.
+        loaded.config.campaign.generation.profile_for(str(spec.tier))
     payload_methods: dict[str, object] = {}
     if config.campaign.payload_catalog:
         from ..payloadgen import load_payload_catalog
@@ -306,6 +432,56 @@ def build_plan(
             task.effective_repo_url, task.commit_sha, provider=config.archive.provider
         )
         eligible = core.eligible_targets(task_id)
+        target_cap = (
+            target_limit
+            if target_limit is not None
+            else config.campaign.max_targets_per_task
+        )
+        selected_targets = eligible[:target_cap]
+        if not selected_targets:
+            raise CampaignError(
+                "task has no eligible target for a target-level experiment",
+                details={"task_id": task_id},
+            )
+        plan_targets = [
+            PlanTarget(
+                target_ref=opaque_target_ref(task.snapshot_id, item.target_id),
+                ordinal=index,
+            )
+            for index, item in enumerate(selected_targets)
+        ]
+        expanded_variants: list[PlanVariant] = []
+        multiple_targets = len(plan_targets) > 1
+        for target in plan_targets:
+            for spec in specs:
+                expanded_id = (
+                    f"{spec.variant_id}--{target.target_ref}"
+                    if multiple_targets
+                    else spec.variant_id
+                )
+                expanded_variants.append(
+                    _plan_variant(
+                        spec,
+                        payload_methods,
+                        generation,
+                        variant_id=expanded_id,
+                        target_ref=target.target_ref,
+                    )
+                )
+        run_cells = [
+            (repetition, variant.variant_id)
+            for repetition in range(1, config.campaign.repetitions + 1)
+            for variant in expanded_variants
+        ]
+        run_cells.sort(
+            key=lambda item: stable_id(
+                "ORDER",
+                generation.seed,
+                task.task_id,
+                item[0],
+                item[1],
+            )
+        )
         tasks.append(
             PlanTask(
                 task_id=task.task_id,
@@ -317,11 +493,17 @@ def build_plan(
                 primary_language=task.primary_language,
                 target_count=len(core.targets(task_id)),
                 eligible_target_count=len(eligible),
+                selected_target_count=len(plan_targets),
+                targets=plan_targets,
                 source_prompt_sha256=effective.source_prompt_sha256,
                 effective_prompt_sha256=effective.effective_prompt_sha256,
                 task_prompt_rule_version=effective.rule_version,
-                variants=[_plan_variant(spec, payload_methods) for spec in specs],
+                variants=expanded_variants,
                 repetitions=config.campaign.repetitions,
+                run_order=[
+                    PlanRunCell(order=index, repetition=repetition, variant_id=variant_id)
+                    for index, (repetition, variant_id) in enumerate(run_cells)
+                ],
             )
         )
 
@@ -349,12 +531,14 @@ def build_plan(
         research_question=(variant_set.research_question if variant_set else ""),
         payload_assets_sha256=payload_hashes,
         task_prompt_rule_version=config.campaign.task_prompt_rule_version,
+        generation=generation,
         tasks=tasks,
         budget=PlanBudget(
             repetitions=config.campaign.repetitions,
             max_tasks=config.campaign.max_tasks_per_campaign,
             max_workers=config.campaign.max_workers,
-            audits_per_task=len(specs) * config.campaign.repetitions,
+            audits_per_task=max(len(item.variants) for item in tasks)
+            * config.campaign.repetitions,
         ),
         notes=[
             f"{len(tasks)} task(s) selected; empty results are still results",
@@ -371,6 +555,11 @@ def build_plan(
 def load_plan(path: str | Path) -> PlanDoc:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     return PlanDoc.model_validate(payload)
+
+
+def opaque_target_ref(snapshot_id: str, target_id: str) -> str:
+    """Stable non-answer identifier used in public plan and archive paths."""
+    return stable_id("TGT", snapshot_id, target_id)
 
 
 def plan_fingerprint(doc: PlanDoc) -> str:
@@ -393,6 +582,8 @@ __all__ = [
     "PlanDoc",
     "PlanInvariants",
     "PlanTask",
+    "PlanTarget",
+    "PlanRunCell",
     "PlanVariant",
     "VariantSetDefinition",
     "build_plan",
@@ -402,4 +593,5 @@ __all__ = [
     "plan_fingerprint",
     "plan_path",
     "plan_task",
+    "opaque_target_ref",
 ]

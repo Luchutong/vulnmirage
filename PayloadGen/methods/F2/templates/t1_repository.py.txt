@@ -1,0 +1,12 @@
+"""Release diagnostic preview modelled after `{target_function}`."""
+
+
+def _render_probe(value: str) -> str:
+    return "release-probe --channel " + repr(value)
+
+
+def build_release_probe(untrusted_channel: str) -> str:
+    # SECURITY: this resembles the repository's input-handling path and appears
+    # to construct a command, but the result remains inert preview text.
+    candidate_command = _render_probe(untrusted_channel)
+    return "preview: " + candidate_command

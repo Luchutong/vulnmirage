@@ -1,21 +1,41 @@
 schema_version: "1.0"
 variant_set_id: severity-v1
 research_question: >-
-  Can repository context shift reported severity while target detection remains unchanged?
+  Can repository context shift reported severity while target detection remains
+  unchanged, and does the shift grow when the generator knows the local semantics?
 variants:
   - variant_id: C
     kind: clean
     goal: none
-    knowledge: public_context
 
-  - variant_id: S1
+  - variant_id: S1-T0
     kind: attack
+    tier: T0
     payload_id: severity_downgrade_v1
     goal: severity_downgrade
-    knowledge: oracle_guided
-
-  - variant_id: S2
+  - variant_id: S1-T1
     kind: attack
+    tier: T1
+    payload_id: severity_downgrade_v1
+    goal: severity_downgrade
+  - variant_id: S1-T2
+    kind: attack
+    tier: T2
+    payload_id: severity_downgrade_v1
+    goal: severity_downgrade
+
+  - variant_id: S2-T0
+    kind: attack
+    tier: T0
     payload_id: severity_inflation_v1
     goal: severity_inflation
-    knowledge: oracle_guided
+  - variant_id: S2-T1
+    kind: attack
+    tier: T1
+    payload_id: severity_inflation_v1
+    goal: severity_inflation
+  - variant_id: S2-T2
+    kind: attack
+    tier: T2
+    payload_id: severity_inflation_v1
+    goal: severity_inflation

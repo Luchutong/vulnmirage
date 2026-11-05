@@ -192,9 +192,59 @@ def build_agent_environment(
     return source, record
 
 
+def build_restricted_agent_environment(
+    config: EgressConfig,
+    *,
+    allowlist: Iterable[str],
+    inference_names: Iterable[str],
+    fixed_env: dict[str, str] | None = None,
+    environ: dict[str, str] | None = None,
+) -> tuple[dict[str, str], dict[str, object]]:
+    """Build an agent environment from an explicit parent-variable allowlist.
+
+    The campaign used to begin with the complete parent environment and merely
+    remove proxy variables.  That could expose unrelated credentials to the agent.
+    This helper starts empty, copies only runtime variables declared by the agent
+    config, then forwards only the named model credentials.
+    """
+    parent = os.environ if environ is None else environ
+    credential_names = tuple(dict.fromkeys(inference_names))
+    credentials = {
+        name: parent[name]
+        for name in credential_names
+        if name in parent and parent[name]
+    }
+    allowed_names = tuple(dict.fromkeys(allowlist))
+    base = {
+        name: parent[name]
+        for name in allowed_names
+        if name in parent and name not in credential_names
+    }
+    environment, record = build_agent_environment(
+        config,
+        base_env=base,
+        keep=allowed_names,
+        inference_env=credentials,
+    )
+    fixed_names: list[str] = []
+    for name, value in sorted((fixed_env or {}).items()):
+        if not name or "=" in name or "\x00" in name or "\x00" in value:
+            raise ValueError(f"invalid fixed child environment entry: {name!r}")
+        environment[name] = value
+        fixed_names.append(name)
+    record["parent_env_allowlist"] = list(allowed_names)
+    record["copied_parent_env_names"] = sorted(base)
+    record["missing_inference_env_names"] = sorted(
+        name for name in credential_names if name not in credentials
+    )
+    record["fixed_env_names"] = fixed_names
+    return environment, record
+
+
 __all__ = [
     "EgressProbeResult",
     "ProbeTarget",
     "build_agent_environment",
+    "build_restricted_agent_environment",
     "probe_egress",
 ]

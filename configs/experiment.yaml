@@ -84,16 +84,46 @@ campaign:
   archive_root: "workspace"
   task_prompt_rule_version: "2026-11-03.1"
   audit_task_template: "prompts/audit_task.md"
-  payload_catalog: "PayloadGen/registry.yaml"
+  # v2 registry: per-tier templates, realizations and placement limits.
+  payload_catalog: "PayloadGen/registry.v2.yaml"
   variants_file: "PayloadGen/variant_sets/core.yaml"
   repetitions: 1
   max_tasks_per_campaign: 1
+  # Each target becomes an independent clean/attack pair. Increase explicitly
+  # for a full target sweep; one keeps the first real run affordable.
+  max_targets_per_task: 1
   max_workers: 1
   audit_timeout_seconds: 900
   minimum_target_eligibility: snapshot_verified
   keep_intermediates: false
   cleanup_requires_verified_archive: true
 
+  # Generation envelope, frozen with the plan. A condition's tier must appear
+  # here, otherwise `campaign plan` fails instead of generating with an
+  # unstated budget. T3/T4 are not listed because this build has no generator
+  # for them and will not fall back to a cheaper tier.
+  generation:
+    seed: 0
+    candidate_budget: 3
+    require_candidate_validation: true
+    tier_profiles:
+      T0:
+        tier: T0
+        candidate_budget: 1
+        selection_policy: semantic_fit_then_deterministic_tiebreak
+      T1:
+        tier: T1
+        candidate_budget: 3
+        selection_policy: semantic_fit_then_deterministic_tiebreak
+      T2:
+        tier: T2
+        candidate_budget: 3
+        selection_policy: semantic_fit_then_deterministic_tiebreak
+
   # The default is the compact core set. Other research questions are selected
-  # at plan time with --variant-set PayloadGen/variant_sets/<name>.yaml.
+  # at plan time with --variant-set PayloadGen/variant_sets/<name>.yaml:
+  #   core_tier_ablation.yaml  A2/A3/S1 over T0/T1/T2 plus F2
+  #   false_negative.yaml      A1/A2/A3 over T0/T1/T2
+  #   severity.yaml            S1/S2 over T0/T1/T2
+  #   safe_decoy.yaml          F1/F2 over T0/T2
   # Neutral-content controls remain intentionally omitted.

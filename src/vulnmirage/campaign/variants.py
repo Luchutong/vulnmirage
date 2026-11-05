@@ -40,6 +40,11 @@ class AppliedEdit(BaseModel):
     chars: int
     sha256: str
     detail: str | None = None
+    #: Character offset of the insertion and the 1-based line it landed on.  Target
+    #: remapping needs both; deriving them by re-searching the edited tree would be
+    #: guesswork once a payload text happens to contain the anchor as well.
+    offset: int | None = None
+    line: int | None = None
 
 
 class VariantBuild(BaseModel):
@@ -47,15 +52,21 @@ class VariantBuild(BaseModel):
 
     schema_version: str = VARIANT_SCHEMA_VERSION
     variant_id: str
+    target_ref: str | None = None
     kind: str
     payload_id: str | None = None
     method_id: str | None = None
     carrier: str | None = None
     goal: str = "none"
     knowledge: str = "public_context"
+    tier: str = "T0"
     reproduction_status: str | None = None
     template_sha256: str | None = None
     rendered_sha256: str | None = None
+    #: Which candidate of the generation manifest produced this tree.
+    candidate_id: str | None = None
+    generation_manifest_sha256: str | None = None
+    remap_sha256: str | None = None
     base_tree_sha256: str
     tree_sha256: str
     edits: list[AppliedEdit] = Field(default_factory=list)
@@ -80,6 +91,8 @@ def _apply_create(root: Path, path: str, text: str) -> AppliedEdit:
         chars=len(text),
         sha256=sha256_text(text),
         detail="new file",
+        offset=0,
+        line=1,
     )
 
 
@@ -99,6 +112,8 @@ def _apply_append(root: Path, path: str, text: str) -> AppliedEdit:
         chars=len(text),
         sha256=sha256_text(text),
         detail=f"appended after {len(existing)} character(s)",
+        offset=len(existing),
+        line=existing.count("\n") + 1,
     )
 
 
@@ -126,6 +141,8 @@ def _apply_insert_before(root: Path, path: str, text: str, anchor: str | None) -
         chars=len(text),
         sha256=sha256_text(text),
         detail=f"inserted at offset {index}",
+        offset=index,
+        line=existing[:index].count("\n") + 1,
     )
 
 
@@ -135,6 +152,9 @@ def build_variant(
     spec: VariantSpecConfig,
     destination: Path,
     answer_tokens: list[str] | None = None,
+    candidate_id: str | None = None,
+    generation_manifest_sha256: str | None = None,
+    target_ref: str | None = None,
 ) -> VariantBuild:
     """Copy the clean snapshot and apply this variant's edits to the copy."""
     source_dir = Path(source_dir)
@@ -175,12 +195,16 @@ def build_variant(
 
     return VariantBuild(
         variant_id=spec.variant_id,
+        target_ref=target_ref,
         kind=spec.kind,
         payload_id=spec.payload_id,
         method_id=spec.method_id,
         carrier=spec.carrier,
         goal=spec.goal,
         knowledge=spec.knowledge,
+        tier=str(spec.tier),
+        candidate_id=candidate_id,
+        generation_manifest_sha256=generation_manifest_sha256,
         base_tree_sha256=base_digest,
         tree_sha256=tree_digest(destination),
         edits=applied,

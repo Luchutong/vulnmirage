@@ -1,27 +1,57 @@
 schema_version: "1.0"
 variant_set_id: false-negative-v1
 research_question: >-
-  Which misleading-context mechanism suppresses reporting of a verified target?
+  Which misleading-context mechanism suppresses reporting of a verified target, and
+  how much does the generator's information level change that?
 variants:
   - variant_id: C
     kind: clean
     goal: none
-    knowledge: public_context
 
-  - variant_id: A1
+  - variant_id: A1-T0
     kind: attack
+    tier: T0
     payload_id: false_fix_claim_v1
     goal: false_negative
-    knowledge: public_context
-
-  - variant_id: A2
+  - variant_id: A1-T1
     kind: attack
+    tier: T1
+    payload_id: false_fix_claim_v1
+    goal: false_negative
+  - variant_id: A1-T2
+    kind: attack
+    tier: T2
+    payload_id: false_fix_claim_v1
+    goal: false_negative
+
+  - variant_id: A2-T0
+    kind: attack
+    tier: T0
     payload_id: todo_false_safety_v1
     goal: false_negative
-    knowledge: oracle_guided
-
-  - variant_id: A3
+  - variant_id: A2-T1
     kind: attack
+    tier: T1
+    payload_id: todo_false_safety_v1
+    goal: false_negative
+  - variant_id: A2-T2
+    kind: attack
+    tier: T2
+    payload_id: todo_false_safety_v1
+    goal: false_negative
+
+  - variant_id: A3-T0
+    kind: attack
+    tier: T0
     payload_id: fabricated_authority_v1
     goal: false_negative
-    knowledge: oracle_guided
+  - variant_id: A3-T1
+    kind: attack
+    tier: T1
+    payload_id: fabricated_authority_v1
+    goal: false_negative
+  - variant_id: A3-T2
+    kind: attack
+    tier: T2
+    payload_id: fabricated_authority_v1
+    goal: false_negative

@@ -57,7 +57,11 @@ def cmd_doctor(args: argparse.Namespace) -> dict[str, Any]:
     from .diagnostics import run_doctor
 
     loaded = _load_config(args.config)
-    return run_doctor(loaded, agent_path=Path(args.agent) if args.agent else None)
+    return run_doctor(
+        loaded,
+        agent_path=Path(args.agent) if args.agent else None,
+        agent_profile=getattr(args, "agent_profile", None),
+    )
 
 
 # ----------------------------------------------------------------------- schemas
@@ -113,11 +117,20 @@ def _runner(args: argparse.Namespace):
 
     executor = NullExecutor()
     model_label = getattr(args, "model_label", None)
+    agent_env_names: tuple[str, ...] = ()
+    agent_env_allowlist: tuple[str, ...] = ()
+    trace_adapter = "none"
+    agent_profile: str | None = None
+    agent_env_overrides: dict[str, str] = {}
+    agent_config_sha256: str | None = None
+    agent_external_file_sha256: dict[str, str] = {}
     agent_path = getattr(args, "agent", None)
     if agent_path:
         from .config import load_agent_config
 
-        agent = load_agent_config(Path(agent_path))
+        agent = load_agent_config(
+            Path(agent_path), profile=getattr(args, "agent_profile", None)
+        )
         missing = agent.config.missing_env()
         if missing:
             raise ConfigError(
@@ -126,6 +139,13 @@ def _runner(args: argparse.Namespace):
             )
         executor = build_executor(agent.config)
         model_label = model_label or agent.config.model_label
+        agent_env_names = tuple(agent.config.requires_env)
+        agent_env_allowlist = tuple(agent.config.env_allowlist)
+        trace_adapter = agent.config.trace_adapter
+        agent_profile = agent.profile
+        agent_env_overrides = dict(agent.child_env)
+        agent_config_sha256 = agent.sha256
+        agent_external_file_sha256 = dict(agent.external_file_sha256)
 
     runner = CampaignRunner(
         loaded,
@@ -133,6 +153,13 @@ def _runner(args: argparse.Namespace):
         archive_root=archive_root,
         executor=executor,
         model_label=model_label,
+        agent_env_names=agent_env_names,
+        agent_env_allowlist=agent_env_allowlist,
+        trace_adapter=trace_adapter,
+        agent_profile=agent_profile,
+        agent_env_overrides=agent_env_overrides,
+        agent_config_sha256=agent_config_sha256,
+        agent_external_file_sha256=agent_external_file_sha256,
     )
     if plan is not None:
         runner.use_plan(plan)
@@ -150,7 +177,34 @@ def cmd_campaign_plan(args: argparse.Namespace) -> dict[str, Any]:
         dataset_root=Path(args.dataset) if args.dataset else None,
         archive_root=Path(args.workspace) if args.workspace else None,
     )
-    return runner.write_plan(task_ids=args.task or None, limit=args.limit)
+    return runner.write_plan(
+        dry_run=bool(getattr(args, "dry_run", False)),
+        task_ids=args.task or None,
+        limit=args.limit,
+        target_limit=args.target_limit,
+    )
+
+
+def cmd_campaign_generate(args: argparse.Namespace) -> dict[str, Any]:
+    """Generate and validate candidates only; no agent, no audit budget."""
+    runner, plan = _runner(args)
+    if plan is None:
+        raise ConfigError("campaign generate requires --plan")
+    task_ids = args.task or [item.task_id for item in plan.tasks]
+    results = [runner.generate_only(task_id) for task_id in task_ids]
+    return {
+        "ok": all(item.get("ok") for item in results),
+        "variant_set_id": plan.variant_set_id,
+        "results": results,
+    }
+
+
+def cmd_campaign_aggregate(args: argparse.Namespace) -> dict[str, Any]:
+    runner, plan = _runner(args)
+    if plan is None:
+        raise ConfigError("campaign aggregate requires --plan")
+    task_ids = args.task or None
+    return runner.aggregate(tasks=task_ids)
 
 
 def cmd_campaign_run(args: argparse.Namespace) -> dict[str, Any]:
@@ -237,6 +291,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="check configuration, dataset, egress and executor")
     doctor.add_argument("--config", help="application config YAML")
     doctor.add_argument("--agent", help="optional agent config YAML")
+    doctor.add_argument(
+        "--agent-profile",
+        default=None,
+        help="profile inside a multi-model agent config (default: its default_profile)",
+    )
     doctor.set_defaults(func=cmd_doctor)
 
     schemas = sub.add_parser("schemas", help="regenerate the JSON Schemas")
@@ -272,11 +331,41 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(plan_cmd, plan_required=False)
     plan_cmd.add_argument("--limit", type=int, default=None)
     plan_cmd.add_argument(
+        "--target-limit",
+        type=int,
+        default=None,
+        help="maximum eligible targets expanded per task (default: campaign config)",
+    )
+    plan_cmd.add_argument(
         "--variant-set",
         default=None,
         help="variant-set YAML selected and frozen into this plan",
     )
+    plan_cmd.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="resolve every input and print the plan digest without writing it",
+    )
     plan_cmd.set_defaults(func=cmd_campaign_plan)
+
+    generate_cmd = campaign_sub.add_parser(
+        "generate",
+        help="generate and validate attack candidates only (no agent, no audit)",
+    )
+    add_common(generate_cmd, plan_required=True)
+    generate_cmd.add_argument(
+        "--inspect-generation",
+        action="store_true",
+        help="print candidates, validator verdicts and the recorded selection",
+    )
+    generate_cmd.set_defaults(func=cmd_campaign_generate)
+
+    aggregate_cmd = campaign_sub.add_parser(
+        "aggregate",
+        help="pair clean/attacked runs and write aggregate/aggregate.json",
+    )
+    add_common(aggregate_cmd, plan_required=True)
+    aggregate_cmd.set_defaults(func=cmd_campaign_aggregate)
 
     for name, func, help_text in (
         ("run", cmd_campaign_run, "execute (or resume) one task"),
@@ -285,6 +374,11 @@ def build_parser() -> argparse.ArgumentParser:
         item = campaign_sub.add_parser(name, help=help_text)
         add_common(item, plan_required=True)
         item.add_argument("--agent", default=None, help="agent config with an argv template")
+        item.add_argument(
+            "--agent-profile",
+            default=None,
+            help="profile inside a multi-model agent config (e.g. glm-4.7)",
+        )
         item.add_argument("--model-label", default=None)
         item.add_argument("--no-resume", action="store_true")
         item.set_defaults(func=func)

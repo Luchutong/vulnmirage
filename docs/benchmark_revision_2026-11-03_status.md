@@ -7,13 +7,39 @@ The forward-looking design now lives in
 `docs/next_stage_design_2026-11-04.md`; this file remains the audit trail for the
 2026-11-03 revision.
 
+**2026-11-05 update — the tier generation subsystem landed.** The design in
+`docs/adaptive_attack_benchmark_architecture_2026-11-04.md` is now implemented for
+T0–T2; T3/T4 remain planned and fail closed.
+
+| Design section | What exists now | Where | Acceptance |
+| --- | --- | --- | --- |
+| §3 T0–T4 ladder | `tiers.py` is the single definition; config validates a declared tier, plan refuses an unimplemented one | `tiers.py`, `config.py`, `campaign/plan.py` | `test_tier_ablation_set_covers_the_three_implemented_tiers` |
+| §8 PayloadGen v2 | `payloadgen/` package with a compatibility facade; `PayloadGen/registry.v2.yaml` + per-tier templates | `src/vulnmirage/payloadgen/`, `PayloadGen/methods/` | `test_t0_generation_matches_the_preexisting_renderer_byte_for_byte` |
+| §10 contracts | `ConditionSpec`, `ExperimentCell`, `CandidatePayload`, `CandidateValidation`, `GenerationManifest`, `AdaptationQuery` + schemas | `payloadgen/contracts.py` | `test_schema_index_covers_the_new_contracts` |
+| §11 RepositoryIndex | deterministic index with roles, AST/text symbols, comment styles, sink files (no oracle labels) | `payloadgen/repository_index.py` | `test_repository_index_is_deterministic_and_role_aware` |
+| §12 OracleAttackView | allowlist sanitizer + eligibility + token re-scan | `payloadgen/oracle_view.py` | `test_oracle_view_strips_identity_fix_and_excerpt`, `test_a_target_with_only_an_advisory_label_is_ineligible_for_t2` |
+| §13 generate/validate/select | four validators, predeclared scoring, deterministic tie-break, blocking `unknown` | `payloadgen/validators/`, `payloadgen/selection.py`, `payloadgen/engine.py` | `test_selection_is_reproducible_and_records_its_rule`, `test_a_candidate_that_leaks_an_answer_is_not_selectable` |
+| §14.4 target remap | symbol delta → anchor window → line delta, `unique` flag | `payloadgen/remap.py`, `campaign/variants.py` | `test_remap_keeps_a_target_inside_its_function_after_an_insert` |
+| §15 phases | `indexed` / `generation_started` / `candidates_validated` inserted before `variants_frozen` | `campaign/state.py`, `campaign/pipeline.py` | `test_pipeline_freezes_generation_before_building_trees` |
+| §19 aggregation | paired deltas by tier, bootstrap interval, attrition ledger | `evaluation/aggregate.py` | `test_pipeline_freezes_generation_before_building_trees` |
+| §22 CLI | `campaign generate --inspect-generation`, `campaign aggregate`, `--dry-run`, `--agent-profile` | `cli.py` | `test_plan_dry_run_writes_no_control_file` |
+
+Two behaviour changes worth naming: `expected_severity` is no longer filled from the
+private oracle (no template used it, so the T0 goldens are unchanged, but the latent
+leak is gone), and `configs/opencode.yaml` now holds every model under `profiles:`
+with `--agent-profile` selecting one.
+
+Measured on the shipped dataset: **725/725 targets** admit a sanitized T2 view and
+**0** of those views contain an answer token. That is a sanitizer check, not an
+attack result.
+
 **2026-11-04 update — the old flow is gone.** `generation/`, `manipulations/`,
 `validation/`, `export/`, the statistical half of `evaluation/`, the git-based
 materialization (`repository/{cache,git,worktree,materialize,patch,location_remap}`),
 the git-era `store.py` / `inspect.py` / `credentials.py` / `locking.py` /
 `code_semantics.py` / `cvss.py`, the legacy ingest adapters, `payloads/`, the legacy
-prompts and configs, and their documents were deleted. Current size: **46 Python
-modules**, all on the campaign/verifier import closure. Backup:
+prompts and configs, and their documents were deleted. Current size: **75 Python
+modules**, all on the campaign/verifier/payloadgen import closure. Backup:
 `LAB/_archive/vulnmirage_legacy_20261104-1051`.
 
 ## Priority table (plan section 12.2)
@@ -22,8 +48,8 @@ modules**, all on the campaign/verifier import closure. Backup:
 | --- | --- | --- | --- | --- |
 | P0-1 | task JSONL import, ordinary task construction | implemented | `ingest/dataset_core.py`, `campaign/task_prompt.py` | `test_dataset_core_reads_published_layout_and_verifies_hashes`, `test_effective_task_is_answer_free_idempotent_and_shared` |
 | P0-2 | archive download and preparation | implemented | `repository/archive.py`, `campaign/pipeline.py` (`_phase_download`, `_phase_extract`) | `test_safe_extract_rejects_traversal_links_and_budgets`, `test_download_records_digest_and_detects_history`, `test_nested_history_is_refused_by_default` |
-| P0-3 | clean + multi-method variants | implemented | `PayloadGen/variant_sets/`, `payloadgen.py`, `campaign/plan.py`, `campaign/variants.py` | plan-time set selection, independent builds, deterministic rendering, frozen hashes, planned methods fail closed, private safe-decoy tests |
-| P0-4 | workspace audit, dual output, trace contract | audit/output implemented; native OpenCode trace normalization pending | `isolation/*`, `verifier/*`, `campaign/executor.py`, `evaluation/parser.py`, `harness/artifacts.py` | `test_campaign_end_to_end_local_tree`, `test_attestation_*`, `test_verifier_*`, `test_ineligible_run_is_excluded_from_scoring`, `test_harness_artifacts_*` |
+| P0-3 | clean + multi-method variants | implemented | `PayloadGen/{registry.v2.yaml,variant_sets,methods}/`, `payloadgen/`, `campaign/plan.py`, `campaign/variants.py` | plan-time set + tier selection, independent builds, deterministic rendering, frozen generation manifests, planned methods fail closed, private safe-decoy tests |
+| P0-4 | workspace audit, dual output, trace contract | implemented; real OpenCode fixture and live-run validation pending | `isolation/*`, `trace/*`, `verifier/*`, `campaign/executor.py`, `evaluation/parser.py`, `harness/artifacts.py` | `test_campaign_end_to_end_local_tree`, `test_opencode_trace_*`, `test_attestation_*`, `test_verifier_*`, `test_ineligible_run_is_excluded_from_scoring`, `test_harness_artifacts_*` |
 | P1-1 | clean/attack pairing and mechanism analysis | implemented (rule-based, offline) | `mechanism/analysis.py`, `campaign/pipeline.py:_phase_mechanism` | `test_mechanism_analysis_reports_insufficient_evidence_without_trace`, `test_mechanism_analysis_uses_tool_result_evidence` |
 | P1-2 | streaming schedule and cleanup | implemented | `campaign/state.py`, `campaign/pipeline.py:_phase_cleanup` | `test_campaign_cleanup_is_scoped_to_the_task`, `test_campaign_resume_refuses_a_changed_plan` |
 | P1-3 | docs and necessary regression | implemented | `README.md`, `docs/campaign.md`, `docs/leakage_channels.md`, `docs/FILES.md`, `tests/test_campaign_revision.py` | `python -m pytest tests` |
@@ -38,13 +64,13 @@ modules**, all on the campaign/verifier import closure. Backup:
 | §3 archive materialization | `resolve_archive_request` + `download_archive` + `safe_extract`: allowlisted redirects, TLS, byte budget, zip check, traversal/link/device refusal, case-collision detection, strip-single-root, tree digest, nested-history detection. |
 | §4 variants | `PayloadGen` registry + templates; each variant is independently built from the same snapshot. Implemented adaptations cover false-fix/TODO/authority, certified safe decoys, and severity anchors. FPA/Flashboom semantic rewrites are planned and fail closed. Template/rendered/tree hashes and provenance are frozen; answer tokens are refused. |
 | §5 workspace isolation | `ExposureLayout` keeps preparation, exposure and state disjoint; `run_attestation` proves what it can and reports `unknown` for the rest; `probe_egress` makes the network claim testable; invariants run for every condition. |
-| §6 dual output and trace | Envelope parser with `report_markdown`, `agent_report.md`, `findings.json`, deterministic `audit_report.md`, `output_consistency.json`; answer collection through `campaign/executor.py`, which never repairs output. Raw stdout is archived, but OpenCode JSONL is not yet normalized into `events.normalized.jsonl` / `file_access.jsonl` by a native adapter. |
+| §6 dual output and trace | Envelope parser with `report_markdown`, `agent_report.md`, `findings.json`, deterministic `audit_report.md`, `output_consistency.json`; answer collection through `campaign/executor.py`, which never repairs output. `trace/` derives `events.normalized.jsonl`, `tool_calls.jsonl`, `file_access.jsonl`, a source-bound manifest and a completeness assessment from the raw OpenCode JSONL, with credential redaction. |
 | §7 mechanism analysis | `exposure.json`, `trajectory_comparison.json`, `mechanism_assessment.json`, `case_analysis.md`; labels require the evidence they name, otherwise `insufficient_evidence`. |
 | §8 scoring | Per-run target recall and severity deltas plus certified-decoy acceptance. Only exact private `SafeDecoy` matches count as induced false positives; all other unmatched findings remain unadjudicated. |
 | §9 orchestration | Task phase machine with resume identity checks, verified archive before cleanup, `cleanup_manifest.json`, deletion scoped to the task scratch. |
 | §10 layout | Implemented as documented in `docs/campaign.md`. |
-| §11 module changes | `ingest/dataset_core.py`, `repository/archive.py`, `isolation/`, `verifier/`, `mechanism/`, `campaign/`, plus edits to `config.py`, `schemas.py`, `cli.py`, `diagnostics.py`, `evaluation/parser.py`, `harness/artifacts.py`, `harness/sandbox.py`, `paths.py`, `models/`, `prompts/audit_task.md`, `scripts/check_final_answer.py`. |
-| §12 CLI | `doctor`, `schemas`, `ingest dataset-core`, `campaign plan|run|resume|analyze|verify-archive|status`, and `python -m vulnmirage.verifier`. |
+| §11 module changes | `ingest/dataset_core.py`, `repository/archive.py`, `isolation/`, `trace/`, `verifier/`, `mechanism/`, `payloadgen/`, `campaign/`, `evaluation/aggregate.py`, plus edits to `config.py`, `tiers.py`, `schemas.py`, `cli.py`, `diagnostics.py`, `evaluation/parser.py`, `harness/artifacts.py`, `harness/sandbox.py`, `paths.py`, `models/`, `prompts/audit_task.md`, `scripts/check_final_answer.py`. |
+| §12 CLI | `doctor`, `schemas`, `ingest dataset-core`, `campaign plan|generate|run|resume|analyze|aggregate|verify-archive|status`, and `python -m vulnmirage.verifier`. |
 | §13 references | Used for the channel list and the boundary model; see `docs/leakage_channels.md`. |
 
 ## Not implemented, and why
@@ -52,10 +78,11 @@ modules**, all on the campaign/verifier import closure. Backup:
 | Plan item | Status | Reason / next step |
 | --- | --- | --- |
 | LFS / submodule content completion | not implemented | archives can omit them; the loader records the limitation instead of substituting a newer version |
-| Container as the default backend | not implemented | `campaign/executor.py` runs the configured argv; a `subprocess` run records `runtime_boundary: unknown`. Container execution is an operator / agent-config choice, not a code path here |
-| Cross-repository statistics | not implemented | the campaign produces per-run and per-task results; the paired/bootstrap statistics belonged to the removed legacy evaluation. Re-adding them means a new module over `score.json` files, not resurrecting the old one |
+| Container as the default backend | not implemented | `campaign/executor.py` runs the configured argv; a `subprocess` run records `runtime_boundary: unknown`. Container/gateway execution is an operator choice, not a code path here |
+| Cross-repository statistics at scale | partial | `evaluation/aggregate.py` pairs within a task and bootstraps the paired deltas; clustering by repository and pre-registered exclusion rules are still to be exercised on a real multi-task campaign |
 | LLM-assisted mechanism coding | not implemented | labels are rule-based and auditable; an LLM coder would need its own blind-adjudication protocol |
-| Trace capture for arbitrary runtimes | not implemented | the bundle accepts `events.normalized.jsonl` / `file_access.jsonl` when the runtime produces them; otherwise exposure is `unknown` |
+| Trace capture for arbitrary runtimes | OpenCode implemented; other runtimes not implemented | `AgentConfig.trace_adapter` is explicit; unsupported/disabled runtimes produce empty derived files and a stable missing/disabled status rather than inferred evidence |
+| T3/T4 generators | not implemented | no surrogate gateway and no adaptation/holdout protocol; both tiers raise `unsupported_tier` and cannot be planned |
 
 ## What the first real run changed
 
@@ -89,12 +116,14 @@ hashed artifacts.
 ## Verification snapshot
 
 ```text
-python -m pytest tests -q            -> 44 passed
-python -m vulnmirage schemas         -> 27 schemas, missing [] stale []
+python -m pytest tests -q            -> 68 passed
+python -m vulnmirage schemas         -> 44 schemas, missing [] stale []
 python -m vulnmirage ingest dataset-core --root ../VulnMirage_dataset
                                      -> ok, 47 tasks / 725 targets, digests verified
-python -m vulnmirage campaign plan --dataset ../VulnMirage_dataset --limit 2
-                                     -> plan written; no target id, CVE or CWE in it
+python -m vulnmirage campaign plan --dataset ../VulnMirage_dataset --limit 2 --dry-run
+                                     -> resolved; no target id, CVE or CWE in it
+python -m vulnmirage campaign plan ... --variant-set <each set> --dry-run
+                                     -> all five sets resolve (6/12/10/5/7 conditions)
 python -m vulnmirage doctor          -> config/dataset/archive pass; egress probed live
 ```
 

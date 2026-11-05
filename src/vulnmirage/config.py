@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -27,8 +27,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import SCHEMA_VERSION
 from .errors import ConfigError
-from .hashing import canonical_json, sha256_text
+from .hashing import canonical_json, sha256_file, sha256_text
 from .paths import project_root
+from .tiers import Tier, is_implemented
 
 _ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
@@ -158,6 +159,10 @@ class VariantEditConfig(_Strict):
 class VariantSpecConfig(_Strict):
     variant_id: str
     kind: Literal["clean", "attack"] = "attack"
+    #: Capability tier of the generator that realizes this condition (design §3).
+    #: A tier the build does not implement fails at plan time instead of falling
+    #: back to a cheaper realization at run time.
+    tier: Tier = "T0"
     #: Optional reference into ``campaign.payload_catalog``.  The referenced
     #: payload is rendered during the trusted preparation phase; it is never
     #: read from inside the agent workspace.
@@ -176,11 +181,64 @@ class VariantSpecConfig(_Strict):
         "scope_shift",
         "none",
     ] = "none"
-    #: Does this variant assume the target is already known?
+    #: Deprecated in favour of ``tier``: kept so older variant sets still load,
+    #: but the tier, not this label, decides what a generator may read.
     knowledge: Literal["public_context", "target_known", "oracle_guided"] = "public_context"
     edits: list[VariantEditConfig] = Field(default_factory=list)
     #: Text that must never appear in the variant (answer-identifying tokens).
     forbidden_tokens: list[str] = Field(default_factory=list)
+
+
+class TierProfileConfig(_Strict):
+    """Generation budget and limits for one capability tier.
+
+    The size limits are optional ceilings: ``None`` means "the method's own
+    ``placement_limits`` decide". A method that legitimately needs more lines (a
+    certified decoy file, for instance) is not silently truncated by a generic
+    tier default, and a profile that does set a value still wins when it is
+    stricter.
+    """
+
+    tier: Tier
+    generator_profile: str = "default"
+    candidate_budget: int = Field(default=1, ge=1, le=64)
+    selection_policy: str = "semantic_fit_then_deterministic_tiebreak"
+    max_files_changed: int | None = Field(default=None, ge=1, le=16)
+    max_inserted_lines: int | None = Field(default=None, ge=1, le=400)
+    max_payload_chars: int | None = Field(default=None, ge=1, le=200_000)
+    max_model_calls: int = Field(default=0, ge=0, le=1000)
+
+    @field_validator("tier")
+    @classmethod
+    def _implemented(cls, value: str) -> str:
+        if not is_implemented(value):
+            raise ValueError(f"tier {value} is not implemented in this build")
+        return value
+
+
+class GenerationBudgetConfig(_Strict):
+    """Campaign-level generation envelope, frozen with the plan."""
+
+    seed: int = Field(default=0, ge=0)
+    candidate_budget: int = Field(default=3, ge=1, le=64)
+    max_model_calls: int = Field(default=0, ge=0, le=10_000)
+    require_candidate_validation: bool = True
+    tier_profiles: dict[str, TierProfileConfig] = Field(
+        default_factory=lambda: {
+            "T0": TierProfileConfig(tier="T0", candidate_budget=1),
+            "T1": TierProfileConfig(tier="T1", candidate_budget=3),
+            "T2": TierProfileConfig(tier="T2", candidate_budget=3),
+        }
+    )
+
+    def profile_for(self, tier: str) -> TierProfileConfig:
+        profile = self.tier_profiles.get(tier)
+        if profile is None:
+            raise ConfigError(
+                "no generation profile is configured for this tier",
+                details={"tier": tier, "configured": sorted(self.tier_profiles)},
+            )
+        return profile
 
 
 class CampaignConfig(_Strict):
@@ -197,9 +255,16 @@ class CampaignConfig(_Strict):
     #: Registry of reusable payload methods.  Relative paths are resolved as
     #: normal benchmark assets (config directory, project root, then cwd).
     payload_catalog: str | None = None
+    #: Tier profiles and the seed decide what generation may try; they are frozen
+    #: with the plan so a "T2" condition cannot be re-planned as T0 later.
+    generation: GenerationBudgetConfig = Field(default_factory=GenerationBudgetConfig)
     #: Formal runs are pre-registered; the same count runs for every condition.
     repetitions: int = Field(default=1, ge=1, le=50)
     max_tasks_per_campaign: int = Field(default=1, ge=1, le=500)
+    #: Target-level cells are expanded during planning.  Keeping the default at
+    #: one makes a pilot affordable; set this up to 500 (or use --target-limit)
+    #: to cover every eligible target in a task.
+    max_targets_per_task: int = Field(default=1, ge=1, le=500)
     max_workers: int = Field(default=1, ge=1, le=64)
     #: Wall clock for a single audit process.
     audit_timeout_seconds: int = Field(default=900, ge=1)
@@ -231,6 +296,15 @@ class AgentConfig(_Strict):
     argv: list[str] = Field(default_factory=list)
     #: How the answer is located inside stdout when ``mode = stdout``.
     answer_extractor: Literal["jsonl_events", "json_last_object", "tail"] = "jsonl_events"
+    #: Adapter for the framework's native stdout event stream.  This is separate
+    #: from answer extraction: an answer may be parseable even when its trace is
+    #: partial, and vice versa.
+    trace_adapter: Literal["none", "opencode_jsonl"] = "none"
+    #: Framework-native configuration loaded by the child process.  The path is
+    #: resolved relative to this YAML file, hashed into the effective agent
+    #: identity, and forwarded through ``OPENCODE_CONFIG``.  It is never copied
+    #: into the audited repository.
+    framework_config_file: str | None = None
     timeout_seconds: int = Field(default=1200, ge=1)
     #: Recorded with every run; never inferred.
     model_label: str | None = None
@@ -263,6 +337,20 @@ class AgentConfig(_Strict):
     def missing_env(self, environ: dict[str, str] | None = None) -> list[str]:
         source = os.environ if environ is None else environ
         return [name for name in self.requires_env if not source.get(name)]
+
+
+class AgentProfileConfig(_Strict):
+    """One model entry inside a multi-model agent config.
+
+    ``overrides`` is validated by building the final :class:`AgentConfig`, so an
+    unknown or unsafe key fails the same way a flat config would.
+    """
+
+    model: str
+    description: str | None = None
+    model_label: str | None = None
+    requires_env: list[str] = Field(default_factory=list)
+    overrides: dict[str, Any] = Field(default_factory=dict)
 
 
 class AppConfig(_Strict):
@@ -313,6 +401,14 @@ class LoadedAgentConfig:
     source: Path
     base_dir: Path
     sha256: str
+    #: Which entry of a multi-model file was selected; ``None`` for a flat file.
+    profile: str | None = None
+    #: Every profile the file declares, so a typo can be answered with the list.
+    profiles: tuple[str, ...] = ()
+    #: Environment additions assembled by the trusted launcher.  Values may be
+    #: host paths, so run artefacts record names and file hashes, not values.
+    child_env: dict[str, str] = field(default_factory=dict)
+    external_file_sha256: dict[str, str] = field(default_factory=dict)
 
 
 def _substitute_env(value: Any) -> Any:
@@ -425,44 +521,140 @@ def with_variant_set(loaded: LoadedConfig, value: str | Path) -> LoadedConfig:
     )
 
 
-def load_agent_config(path: str | Path) -> LoadedAgentConfig:
+def load_agent_config(path: str | Path, *, profile: str | None = None) -> LoadedAgentConfig:
+    """Load one agent config.
+
+    A file may describe a single executor (flat ``AgentConfig``) or several models
+    under ``profiles:``.  In the multi-model form the top-level fields are shared
+    defaults, each profile supplies ``model`` plus optional ``overrides``, and
+    ``{model}`` inside ``argv`` is replaced with that profile's model id.  The
+    selected profile participates in the returned digest, so two models from one
+    file cannot be confused in a run record.
+    """
     from .env import load_local_env
 
     load_local_env()
     source = _resolve(path)
     raw = _load_yaml(source)
+    available: tuple[str, ...] = ()
+    selected: str | None = None
+
+    if "profiles" in raw:
+        profiles_raw = raw.pop("profiles")
+        if not isinstance(profiles_raw, dict) or not profiles_raw:
+            raise ConfigError(
+                "an agent config with profiles must declare at least one",
+                details={"path": str(source)},
+            )
+        parsed: dict[str, AgentProfileConfig] = {}
+        for name, entry in profiles_raw.items():
+            try:
+                parsed[str(name)] = AgentProfileConfig.model_validate(entry)
+            except Exception as exc:
+                raise ConfigError(
+                    "invalid agent profile",
+                    details={"path": str(source), "profile": str(name), "error": str(exc)},
+                ) from exc
+        available = tuple(sorted(parsed))
+        default_name = raw.pop("default_profile", None) or available[0]
+        selected = profile or str(default_name)
+        if selected not in parsed:
+            raise ConfigError(
+                "unknown agent profile",
+                details={
+                    "path": str(source),
+                    "requested": selected,
+                    "available": list(available),
+                },
+            )
+        entry = parsed[selected]
+        payload: dict[str, Any] = dict(raw)
+        payload.update(entry.overrides)
+        argv = [str(item) for item in payload.get("argv") or []]
+        if "{model}" in " ".join(argv):
+            argv = [item.replace("{model}", entry.model) for item in argv]
+        payload["argv"] = argv
+        if entry.model_label:
+            payload["model_label"] = entry.model_label
+        elif not payload.get("model_label"):
+            payload["model_label"] = entry.model
+        if entry.requires_env:
+            payload["requires_env"] = list(entry.requires_env)
+    else:
+        payload = raw
+
     try:
-        agent = AgentConfig.model_validate(raw)
+        agent = AgentConfig.model_validate(payload)
     except Exception as exc:
         raise ConfigError(
             f"invalid agent configuration: {exc}",
-            details={"path": str(source), "validation": str(exc)},
+            details={"path": str(source), "profile": selected, "validation": str(exc)},
         ) from exc
     if "{repo}" not in " ".join(agent.argv):
         raise ConfigError(
             "agent argv must contain a {repo} placeholder",
             details={"path": str(source), "argv": agent.argv},
         )
+    child_env: dict[str, str] = {}
+    external_hashes: dict[str, str] = {}
+    if agent.framework_config_file:
+        raw_config = Path(agent.framework_config_file).expanduser()
+        candidates = (
+            [raw_config]
+            if raw_config.is_absolute()
+            else [source.parent / raw_config, project_root() / raw_config, Path.cwd() / raw_config]
+        )
+        framework_config = next(
+            (item.resolve() for item in candidates if item.is_file()), None
+        )
+        if framework_config is None:
+            raise ConfigError(
+                "agent framework configuration file is missing",
+                details={
+                    "value": agent.framework_config_file,
+                    "searched": [str(item) for item in candidates],
+                },
+            )
+        child_env["OPENCODE_CONFIG"] = str(framework_config)
+        external_hashes[f"framework_config:{framework_config.name}"] = sha256_file(
+            framework_config
+        )
+    effective_sha = sha256_text(
+        canonical_json(
+            {
+                "config": agent.model_dump(mode="json"),
+                "profile": selected,
+                "external_file_sha256": external_hashes,
+            }
+        )
+    )
     return LoadedAgentConfig(
         config=agent,
         source=source,
         base_dir=source.parent,
-        sha256=sha256_text(canonical_json(agent.model_dump(mode="json"))),
+        sha256=effective_sha,
+        profile=selected,
+        profiles=available,
+        child_env=child_env,
+        external_file_sha256=external_hashes,
     )
 
 
 __all__ = [
     "AgentConfig",
+    "AgentProfileConfig",
     "AppConfig",
     "ArchiveConfig",
     "ArchiveProviderConfig",
     "CampaignConfig",
     "EgressConfig",
     "ExtractionLimitsConfig",
+    "GenerationBudgetConfig",
     "IsolationConfig",
     "LoadedAgentConfig",
     "LoadedConfig",
     "OutputContractConfig",
+    "TierProfileConfig",
     "VariantEditConfig",
     "VariantSpecConfig",
     "VerifierConfig",

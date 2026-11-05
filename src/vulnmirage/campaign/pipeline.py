@@ -20,7 +20,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..config import LoadedConfig
-from ..errors import CampaignError, IsolationError, VerifierError
+from ..errors import CampaignError, GenerationError, IsolationError, VerifierError
 from ..hashing import (
     atomic_write_json,
     sha256_file,
@@ -41,7 +41,7 @@ from ..isolation.attestation import (
 )
 from ..isolation.channels import build_control_report
 from ..isolation.layout import ExposureLayout
-from ..isolation.network import build_agent_environment, probe_egress
+from ..isolation.network import build_restricted_agent_environment, probe_egress
 from ..mechanism.analysis import (
     RunObservation,
     analyze_exposure,
@@ -63,6 +63,7 @@ from ..campaign.plan import (
     build_plan,
     generation_asset_hashes,
     load_plan,
+    opaque_target_ref,
     plan_fingerprint,
     plan_path,
     plan_task,
@@ -74,7 +75,29 @@ from ..campaign.task_prompt import (
     target_answer_tokens,
 )
 from ..campaign.variants import VariantBuild, build_variant
-from ..payloadgen import PayloadRealization, realize_payload
+from ..payloadgen import (
+    CandidatePayload,
+    CandidateValidation,
+    GenerationManifest,
+    GenerationRequest,
+    IndexLimits,
+    PlacementHint,
+    PublicTaskView,
+    RepositoryIndex,
+    TargetRemap,
+    TierBudget,
+    attach_remap,
+    assert_view_is_clean,
+    build_oracle_attack_view,
+    build_repository_index,
+    candidate_to_edit,
+    generate_manifest,
+    load_payload_catalog,
+    remap_targets,
+    selected_candidate,
+)
+from ..tiers import INDEXED_TIERS, ORACLE_VIEW_TIERS
+from ..trace.normalize import normalize_trace
 
 PIPELINE_SCHEMA_VERSION = "1.0"
 
@@ -154,6 +177,7 @@ class RunRecord(BaseModel):
     task_id: str
     variant_set_id: str = "inline"
     variant_id: str
+    target_ref: str | None = None
     variant_kind: str
     method_id: str | None = None
     carrier: str | None = None
@@ -165,8 +189,14 @@ class RunRecord(BaseModel):
     duration_seconds: float | None = None
     tier: str | None = None
     model: str | None = None
+    agent_profile: str | None = None
+    agent_config_sha256: str | None = None
+    agent_external_file_sha256: dict[str, str] = Field(default_factory=dict)
     isolation_eligibility: str = "unattested"
     exposure_root: str | None = None
+    trace_status: str = "missing"
+    trace_completeness: str = "missing"
+    trace_events: int = 0
 
 
 class ArtifactEntry(BaseModel):
@@ -189,6 +219,13 @@ class CampaignRunner:
         archive_root: str | Path | None = None,
         executor: AuditExecutor | None = None,
         model_label: str | None = None,
+        agent_env_names: tuple[str, ...] = (),
+        agent_env_allowlist: tuple[str, ...] = (),
+        trace_adapter: str = "none",
+        agent_profile: str | None = None,
+        agent_env_overrides: dict[str, str] | None = None,
+        agent_config_sha256: str | None = None,
+        agent_external_file_sha256: dict[str, str] | None = None,
     ) -> None:
         self.loaded = loaded
         self.config = loaded.config
@@ -197,6 +234,13 @@ class CampaignRunner:
         self.root = root if root.is_absolute() else (Path.cwd() / root).resolve()
         self.executor = executor or NullExecutor()
         self.model_label = model_label
+        self.agent_env_names = agent_env_names
+        self.agent_env_allowlist = agent_env_allowlist
+        self.trace_adapter = trace_adapter
+        self.agent_profile = agent_profile
+        self.agent_env_overrides = dict(agent_env_overrides or {})
+        self.agent_config_sha256 = agent_config_sha256
+        self.agent_external_file_sha256 = dict(agent_external_file_sha256 or {})
         self.core: DatasetCore | None = None
         self._plan: PlanDoc | None = None
 
@@ -211,13 +255,20 @@ class CampaignRunner:
             )
         return self.core
 
-    def plan(self, *, task_ids: list[str] | None = None, limit: int | None = None) -> PlanDoc:
+    def plan(
+        self,
+        *,
+        task_ids: list[str] | None = None,
+        limit: int | None = None,
+        target_limit: int | None = None,
+    ) -> PlanDoc:
         if self._plan is None:
             self._plan = build_plan(
                 self.loaded,
                 dataset_root=self.dataset_root,
                 task_ids=task_ids,
                 limit=limit,
+                target_limit=target_limit,
                 archive_root=self.root,
             )
         return self._plan
@@ -270,11 +321,25 @@ class CampaignRunner:
         )
 
     # -------------------------------------------------------------------- plan
-    def write_plan(self, **kwargs: object) -> dict[str, object]:
-        doc = self.plan(**kwargs)  # type: ignore[arg-type]
-        self.private_root.mkdir(parents=True, exist_ok=True)
+    def write_plan(self, *, dry_run: bool = False, **kwargs: object) -> dict[str, object]:
+        if dry_run:
+            # Resolve everything (dataset, prompt, catalog, variant set) without
+            # writing the control file; a dry run must not create a campaign.
+            from ..campaign.plan import build_plan
+
+            doc = build_plan(
+                self.loaded,
+                dataset_root=self.dataset_root,
+                archive_root=self.root,
+                write=False,
+                **kwargs,  # type: ignore[arg-type]
+            )
+        else:
+            doc = self.plan(**kwargs)  # type: ignore[arg-type]
+            self.private_root.mkdir(parents=True, exist_ok=True)
         return {
             "ok": True,
+            "dry_run": dry_run,
             "plan": plan_path(self.root).as_posix(),
             "plan_sha256": plan_fingerprint(doc),
             "tasks": [item.task_id for item in doc.tasks],
@@ -284,6 +349,110 @@ class CampaignRunner:
             "research_question": doc.research_question,
             "variant_count": len(doc.tasks[0].variants) if doc.tasks else 0,
             "audits_per_task": doc.budget.audits_per_task,
+            "generation": doc.generation.model_dump(mode="json"),
+        }
+
+    def generate_only(self, task_id: str) -> dict[str, object]:
+        """Run download -> prepare -> index -> generate, and stop before building trees.
+
+        This is the review gate: an operator can read the candidates, the validation
+        verdicts and the selection before any audit budget is spent.
+        """
+        plan = self.load_or_plan()
+        plan_item = plan_task(plan, task_id)
+        store = TaskStateStore(self.root)
+        state = store.open_or_create(
+            task_id,
+            snapshot_id=plan_item.snapshot_id,
+            plan_sha256=plan_fingerprint(plan),
+            config_sha256=self.loaded.sha256,
+        )
+        current = state.phase
+        try:
+            if current in {"pending", "downloading"}:
+                state = self._phase_download(state, plan_item, store)
+                current = "downloading"
+            if current in {"downloading", "extracted"}:
+                state = self._phase_extract(state, plan_item, store)
+                current = "extracted"
+            if current in {"extracted", "prepared"}:
+                state = self._phase_prepare(state, plan_item, store)
+                current = "prepared"
+            if current in {"prepared", "indexed"}:
+                state = self._phase_index(state, plan_item, store)
+                current = "indexed"
+            if current in {"indexed", "generation_started", "candidates_validated"}:
+                state = self._phase_generate(state, plan_item, store)
+                current = "candidates_validated"
+        except (CampaignError, GenerationError) as exc:
+            store.fail(state, phase=current, error=exc.message)
+            return {"ok": False, "task_id": task_id, "error_code": exc.error_code, "details": exc.details}
+        return {
+            "ok": True,
+            "task_id": task_id,
+            "phase": state.phase,
+            "generation": self.inspect_generation(task_id),
+        }
+
+    def inspect_generation(self, task_id: str) -> dict[str, object]:
+        """Read back the frozen candidate sets for human review."""
+        generation_dir = self.task_archive_dir(task_id) / "generation"
+        summary: dict[str, object] = {}
+        summary_path = generation_dir / "generation_manifest.json"
+        if summary_path.is_file():
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        conditions: list[dict[str, object]] = []
+        for path in sorted((generation_dir / "manifests").glob("*.json")):
+            manifest = GenerationManifest.model_validate(
+                json.loads(path.read_text(encoding="utf-8"))
+            )
+            conditions.append(
+                {
+                    "variant_id": manifest.variant_id,
+                    "condition_id": manifest.condition_id,
+                    "tier": manifest.tier,
+                    "method_id": manifest.method_id,
+                    "candidate_budget": manifest.candidate_budget,
+                    "selected": manifest.selection.selected_id,
+                    "selection": manifest.selection.model_dump(mode="json"),
+                    "candidates": [
+                        {
+                            "candidate_id": item.candidate_id,
+                            "edit_op": item.edit_op,
+                            "target_file": item.target_file,
+                            "placement_basis": item.placement_basis,
+                            "lines": item.estimated_lines,
+                            "validation": (
+                                manifest.validation_for(item.candidate_id).summary
+                                if manifest.validation_for(item.candidate_id)
+                                else {}
+                            ),
+                        }
+                        for item in manifest.candidates
+                    ],
+                }
+            )
+        return {
+            "task_id": task_id,
+            "summary": summary,
+            "conditions": conditions,
+            "available": bool(conditions),
+        }
+
+    def aggregate(self, *, tasks: list[str] | None = None) -> dict[str, object]:
+        from ..evaluation.aggregate import aggregate_campaign
+
+        result = aggregate_campaign(self.root, tasks=tasks)
+        path = self.root / "aggregate" / "aggregate.json"
+        atomic_write_json(path, result)
+        return {
+            "ok": True,
+            "path": path.as_posix(),
+            "tasks": result.tasks,
+            "pairs": len(result.pairs),
+            "by_tier": result.by_tier,
+            "bootstrap": result.bootstrap,
+            "losses": result.losses.model_dump(mode="json"),
         }
 
     # --------------------------------------------------------------------- run
@@ -311,7 +480,13 @@ class CampaignRunner:
             if current in {"extracted", "prepared"}:
                 state = self._phase_prepare(state, plan_item, store)
                 current = "prepared"
-            if current in {"prepared", "variants_frozen"}:
+            if current in {"prepared", "indexed"}:
+                state = self._phase_index(state, plan_item, store)
+                current = "indexed"
+            if current in {"indexed", "generation_started", "candidates_validated"}:
+                state = self._phase_generate(state, plan_item, store)
+                current = "candidates_validated"
+            if current in {"candidates_validated", "variants_frozen"}:
                 state = self._phase_variants(state, plan_item, store)
                 current = "variants_frozen"
             if current in {"variants_frozen", "auditing"}:
@@ -648,74 +823,482 @@ class CampaignRunner:
             excluded,
         )
 
-    # ---------------------------------------------------------- phase: variants
-    def _phase_variants(
+    # ------------------------------------------------------------ phase: index
+    def _phase_index(
         self, state: TaskState, plan_item: PlanTask, store: TaskStateStore
     ) -> TaskState:
+        """Index the public tree once, before any generator runs.
+
+        T1+ generators consume this object instead of crawling; that is what makes
+        "the same clean tree produced the same placement" a checkable claim.
+        """
         layout = self.layout(state.task_id, "prep", "C", "clean")
         source_dir = layout.source_dir
+        if not source_dir.is_dir():
+            raise CampaignError(
+                "clean snapshot is missing; run the download phase first",
+                details={"task_id": state.task_id},
+            )
+        index = build_repository_index(
+            source_dir,
+            limits=IndexLimits(),
+            tree_sha256=state.source_tree_sha256 or tree_digest(source_dir),
+        )
+        generation_dir = self.task_archive_dir(state.task_id) / "generation"
+        generation_dir.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(generation_dir / "repository_index.json", index)
+        state = store.note(
+            state,
+            repository_index_sha256=index.index_sha256,
+            repository_files=index.file_count,
+        )
+        return store.advance(
+            state,
+            "indexed",
+            detail=f"{index.file_count} file(s), {len(index.symbols)} symbol(s)",
+        )
+
+    # --------------------------------------------------------- phase: generate
+    def _phase_generate(
+        self, state: TaskState, plan_item: PlanTask, store: TaskStateStore
+    ) -> TaskState:
+        """Generate, validate and select a candidate set for every payload variant."""
+        from ..verifier.targets import TargetSet
+        from ..payloadgen.render import resolve_template_path
+
         archive_dir = self.task_archive_dir(state.task_id)
-        tokens = target_answer_tokens(self.core_index(), state.task_id)
-        specs = self._variant_specs()
-        base_targets_payload = json.loads(
-            (self.private_root / "targets" / f"{state.task_id}.json").read_text(
-                encoding="utf-8"
+        generation_dir = archive_dir / "generation"
+        index = RepositoryIndex.model_validate(
+            json.loads((generation_dir / "repository_index.json").read_text(encoding="utf-8"))
+        )
+        plan = self.load_or_plan()
+        core = self.core_index()
+        task = core.task(state.task_id)
+        tokens = target_answer_tokens(core, state.task_id)
+        base_targets = TargetSet.model_validate(
+            json.loads(
+                (self.private_root / "targets" / f"{state.task_id}.json").read_text(
+                    encoding="utf-8"
+                )
             )
         )
-        from ..verifier.targets import TargetSet
-
-        base_targets = TargetSet.model_validate(base_targets_payload)
+        specs = {item.variant_id: item for item in self._variant_specs()}
+        targets_by_ref = {
+            opaque_target_ref(plan_item.snapshot_id, item.target_id): item
+            for item in base_targets.targets
+        }
         catalog_path = (
             self.loaded.resolve_asset(self.config.campaign.payload_catalog)
             if self.config.campaign.payload_catalog
             else None
         )
+        methods = load_payload_catalog(catalog_path).by_id() if catalog_path else {}
+        layout = self.layout(state.task_id, "prep", "C", "clean")
+        clean_tree = tree_digest(layout.source_dir)
+        candidates_dir = generation_dir / "candidates"
+        manifests_dir = generation_dir / "manifests"
+        candidates_dir.mkdir(parents=True, exist_ok=True)
+        manifests_dir.mkdir(parents=True, exist_ok=True)
+
+        state = (
+            store.advance(state, "generation_started", detail="building candidate sets")
+            if state.phase == "indexed"
+            else state
+        )
+        conditions: list[dict[str, object]] = []
+        for variant in plan_item.variants:
+            base_variant_id = variant.base_variant_id or variant.variant_id
+            base_spec = specs.get(base_variant_id)
+            if base_spec is None:
+                raise CampaignError(
+                    "the plan names a variant the configuration no longer declares",
+                    details={
+                        "variant_id": variant.variant_id,
+                        "base_variant_id": base_variant_id,
+                    },
+                )
+            spec = base_spec.model_copy(update={"variant_id": variant.variant_id})
+            target = targets_by_ref.get(str(variant.target_ref))
+            if target is None:
+                raise CampaignError(
+                    "the planned target is not scoreable in the materialized snapshot",
+                    details={
+                        "variant_id": variant.variant_id,
+                        "target_ref": variant.target_ref,
+                    },
+                )
+            if spec.kind == "clean" or spec.payload_id is None:
+                conditions.append(
+                    {
+                        "variant_id": spec.variant_id,
+                        "target_ref": variant.target_ref,
+                        "tier": str(spec.tier),
+                        "generation": "not_generated",
+                        "reason": "clean baseline or inline edits",
+                    }
+                )
+                continue
+            method = methods.get(str(spec.payload_id))
+            if method is None:
+                raise CampaignError(
+                    "the variant references a payload that is not in the catalog",
+                    details={"variant_id": spec.variant_id, "payload_id": spec.payload_id},
+                )
+            tier = str(spec.tier)
+            profile = plan.generation.tier_profiles.get(tier)
+
+            def ceiling(profile_value: int | None, method_value: int) -> int:
+                # A tier profile may tighten a method's limit; absence means the
+                # method's own placement limit decides.
+                return method_value if profile_value is None else min(profile_value, method_value)
+
+            budget = TierBudget(
+                candidates=(profile.candidate_budget if profile else 1),
+                max_files_changed=ceiling(
+                    profile.max_files_changed if profile else None,
+                    method.placement_limits.max_files_changed,
+                ),
+                max_inserted_lines=ceiling(
+                    profile.max_inserted_lines if profile else None,
+                    method.placement_limits.max_inserted_lines,
+                ),
+                max_payload_chars=ceiling(
+                    profile.max_payload_chars if profile else None,
+                    method.placement_limits.max_payload_chars,
+                ),
+                model_calls=(profile.max_model_calls if profile else 0),
+            )
+            template_path = resolve_template_path(catalog_path, method.template_for(tier))
+            template_text = template_path.read_text(encoding="utf-8")
+
+            # A legacy placement hint remains part of the compatibility API, but
+            # formal T0 generation uses a deterministic public-index location.
+            hint: PlacementHint | None = None
+
+            oracle_view = None
+            if tier in ORACLE_VIEW_TIERS:
+                record = next(
+                    (
+                        item
+                        for item in core.targets(state.task_id)
+                        if item.target_id == target.target_id
+                    ),
+                    None,
+                )
+                if record is None:
+                    raise CampaignError(
+                        "the private target has no oracle row; T2 is not available for it",
+                        details={"variant_id": spec.variant_id, "task_id": state.task_id},
+                    )
+                view, reason = build_oracle_attack_view(
+                    record,
+                    private_target=target,
+                    forbidden_tokens=tokens,
+                )
+                if view is None:
+                    raise CampaignError(
+                        "this target cannot support an oracle-guided condition",
+                        details={"variant_id": spec.variant_id, "reason": reason},
+                    )
+                assert_view_is_clean(view, tokens)
+                oracle_view = view
+                view_dir = self.private_root / "oracle_attack_views"
+                atomic_write_json(
+                    view_dir / f"{state.task_id}__{spec.variant_id}.json", view
+                )
+
+            request = GenerationRequest(
+                task_id=state.task_id,
+                snapshot_id=task.snapshot_id,
+                variant_id=spec.variant_id,
+                condition_id=variant.condition_id or spec.variant_id,
+                method_id=method.method_id or method.method_family,
+                method_family=method.method_family,
+                tier=tier,  # type: ignore[arg-type]
+                goal=method.objective,
+                seed=plan.generation.seed,
+                carrier=method.carrier,
+                placement=method.placement,
+                output_path=method.output_path,
+                selection_policy=(
+                    profile.selection_policy
+                    if profile
+                    else "semantic_fit_then_deterministic_tiebreak"
+                ),
+                task=PublicTaskView(
+                    task_id=state.task_id, primary_language=task.primary_language
+                ),
+                templates={tier: template_text, "T0": template_text},
+                template_source=template_path.as_posix(),
+                budget=budget,
+                limits=method.placement_limits,
+                validation=method.validation,
+                # T0 uses the public index only for deterministic static placement;
+                # T1/T2 additionally adapt content/placement to their capabilities.
+                index=(index if tier in INDEXED_TIERS else None),
+                oracle_view=oracle_view,
+                placement_hint=hint,
+                forbidden_tokens=tokens,
+                clean_tree_sha256=clean_tree,
+                input_hashes={
+                    "repository_index": index.index_sha256,
+                    "template": sha256_file(template_path),
+                    "catalog": sha256_file(catalog_path) if catalog_path else "",
+                },
+                repo_root=layout.source_dir,
+            )
+            manifest = generate_manifest(request, method=method)
+            atomic_write_json(
+                candidates_dir / f"{spec.variant_id}.json",
+                {
+                    "variant_id": spec.variant_id,
+                    "candidates": [item.model_dump(mode="json") for item in manifest.candidates],
+                    "validations": [item.model_dump(mode="json") for item in manifest.validations],
+                },
+            )
+            atomic_write_json(manifests_dir / f"{spec.variant_id}.json", manifest)
+            conditions.append(
+                {
+                    "variant_id": spec.variant_id,
+                    "target_ref": variant.target_ref,
+                    "tier": tier,
+                    "method_id": method.method_id or method.method_family,
+                    "candidates": len(manifest.candidates),
+                    "selected_candidate": manifest.selection.selected_id,
+                    "manifest_sha256": sha256_text(manifest.model_dump_json()),
+                }
+            )
+
+        atomic_write_json(
+            generation_dir / "generation_manifest.json",
+            {
+                "schema_version": PIPELINE_SCHEMA_VERSION,
+                "task_id": state.task_id,
+                "seed": plan.generation.seed,
+                "repository_index_sha256": index.index_sha256,
+                "candidate_budget": plan.generation.candidate_budget,
+                "require_candidate_validation": plan.generation.require_candidate_validation,
+                "conditions": conditions,
+                "created_at": utc_now_iso(),
+            },
+        )
+        if state.phase != "candidates_validated":
+            state = store.advance(
+                state,
+                "candidates_validated",
+                detail=(
+                    f"{sum(1 for item in conditions if item.get('selected_candidate'))} "
+                    "condition(s) selected"
+                ),
+            )
+        return state
+
+    # ---------------------------------------------------------- phase: variants
+    def _phase_variants(
+        self, state: TaskState, plan_item: PlanTask, store: TaskStateStore
+    ) -> TaskState:
+        """Build one tree per condition from its frozen candidate, then remap targets."""
+        from ..payloadgen import GenerationManifest, OracleAttackView
+        from ..verifier.targets import SafeDecoy, TargetSet
+
+        layout = self.layout(state.task_id, "prep", "C", "clean")
+        source_dir = layout.source_dir
+        archive_dir = self.task_archive_dir(state.task_id)
+        generation_dir = archive_dir / "generation"
+        manifests_dir = generation_dir / "manifests"
+        remap_dir = self.private_root / "target_remap"
+        tokens = target_answer_tokens(self.core_index(), state.task_id)
+        specs = {item.variant_id: item for item in self._variant_specs()}
+        base_targets = TargetSet.model_validate(
+            json.loads(
+                (self.private_root / "targets" / f"{state.task_id}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+        )
+        targets_by_ref = {
+            opaque_target_ref(plan_item.snapshot_id, item.target_id): item
+            for item in base_targets.targets
+        }
+        catalog_path = (
+            self.loaded.resolve_asset(self.config.campaign.payload_catalog)
+            if self.config.campaign.payload_catalog
+            else None
+        )
+        methods = load_payload_catalog(catalog_path).by_id() if catalog_path else {}
         builds: list[VariantBuild] = []
         patches_dir = archive_dir / "patches"
         patches_dir.mkdir(parents=True, exist_ok=True)
-        for spec in specs:
-            realization: PayloadRealization | None = None
+        for variant in plan_item.variants:
+            base_variant_id = variant.base_variant_id or variant.variant_id
+            base_spec = specs.get(base_variant_id)
+            if base_spec is None:
+                raise CampaignError(
+                    "the frozen plan references an unknown base variant",
+                    details={
+                        "variant_id": variant.variant_id,
+                        "base_variant_id": base_variant_id,
+                    },
+                )
+            spec = base_spec.model_copy(update={"variant_id": variant.variant_id})
+            selected_target = targets_by_ref.get(str(variant.target_ref))
+            if selected_target is None:
+                raise CampaignError(
+                    "the frozen target is absent from the verified target set",
+                    details={
+                        "variant_id": variant.variant_id,
+                        "target_ref": variant.target_ref,
+                    },
+                )
+            candidate: CandidatePayload | None = None
+            manifest: GenerationManifest | None = None
             effective_spec = spec
             if spec.payload_id:
-                if catalog_path is None:  # guarded during planning; defensive on resume
-                    raise CampaignError("payload catalog is not configured")
-                realization = realize_payload(
-                    catalog_path=catalog_path,
-                    spec=spec,
-                    targets=base_targets.targets,
+                manifest_path = manifests_dir / f"{spec.variant_id}.json"
+                if not manifest_path.is_file():
+                    raise CampaignError(
+                        "the generation manifest for this variant is missing",
+                        details={
+                            "variant_id": spec.variant_id,
+                            "path": manifest_path.as_posix(),
+                        },
+                    )
+                manifest = GenerationManifest.model_validate(
+                    json.loads(manifest_path.read_text(encoding="utf-8"))
                 )
-                effective_spec = realization.spec
+                candidate = selected_candidate(manifest)
+                effective_spec = spec.model_copy(
+                    update={
+                        "edits": [candidate_to_edit(candidate)],
+                        "method_id": spec.method_id or candidate.method_id,
+                        "carrier": spec.carrier or candidate.carrier,
+                    }
+                )
             build = build_variant(
                 source_dir=source_dir,
                 spec=effective_spec,
                 destination=layout.variants_dir / spec.variant_id,
                 answer_tokens=tokens,
+                candidate_id=(candidate.candidate_id if candidate else None),
+                generation_manifest_sha256=(
+                    sha256_text(manifest.model_dump_json()) if manifest is not None else None
+                ),
+                target_ref=variant.target_ref,
             )
-            if realization is not None:
+            remap = remap_targets(
+                task_id=state.task_id,
+                variant_id=spec.variant_id,
+                targets=[selected_target],
+                clean_root=source_dir,
+                variant_root=layout.variants_dir / spec.variant_id,
+                applied_edits=[item.model_dump(mode="json") for item in build.edits],
+                clean_tree_sha256=build.base_tree_sha256,
+                variant_tree_sha256=build.tree_sha256,
+            )
+            if not remap.unique:
+                raise CampaignError(
+                    "a private target could not be remapped into this variant; "
+                    "the variant must not enter a formal repetition",
+                    details={
+                        "variant_id": spec.variant_id,
+                        "remap_sha256": remap.remap_sha256,
+                    },
+                )
+            atomic_write_json(remap_dir / f"{state.task_id}__{spec.variant_id}.json", remap)
+            if manifest is not None and candidate is not None:
+                manifest = attach_remap(
+                    manifest, remap, variant_tree_sha256=build.tree_sha256
+                )
+                atomic_write_json(manifests_dir / f"{spec.variant_id}.json", manifest)
                 build = build.model_copy(
                     update={
-                        "reproduction_status": realization.reproduction_status,
-                        "template_sha256": realization.template_sha256,
-                        "rendered_sha256": realization.rendered_sha256,
+                        "remap_sha256": remap.remap_sha256,
+                        "generation_manifest_sha256": sha256_text(
+                            manifest.model_dump_json()
+                        ),
+                        "rendered_sha256": candidate.content_sha256,
+                        "template_sha256": manifest.input_hashes.get("template"),
                     }
                 )
-            builds.append(build)
+
+            decoys: list[SafeDecoy] = []
+            method = methods.get(str(spec.payload_id)) if spec.payload_id else None
+            if (
+                candidate is not None
+                and manifest is not None
+                and method is not None
+                and method.placement == "safe_decoy_file"
+            ):
+                validation = manifest.validation_for(candidate.candidate_id)
+                proof = (
+                    next(
+                        (
+                            item
+                            for item in validation.results
+                            if item.validator == "semantic" and item.status == "pass"
+                        ),
+                        None,
+                    )
+                    if validation is not None
+                    else None
+                )
+                if proof is None:
+                    raise CampaignError(
+                        "the selected safe decoy has no semantic certificate",
+                        details={
+                            "variant_id": spec.variant_id,
+                            "candidate_id": candidate.candidate_id,
+                        },
+                    )
+                decoys.append(
+                    SafeDecoy(
+                        decoy_id=f"DECOY-{spec.variant_id}",
+                        variant_id=spec.variant_id,
+                        file=str(candidate.target_file),
+                        line_start=1,
+                        line_end=max(1, candidate.rendered_text.count("\n")),
+                        cwe_ids=list(method.safe_decoy_cwe_ids),
+                        proof_kind=str(
+                            proof.evidence.get("proof_kind")
+                            or "python_no_execution_subset_v1"
+                        ),
+                        proof_sha256=str(proof.evidence.get("proof_sha256") or ""),
+                        safety_basis=method.private_safety_basis or "no executable sink",
+                    )
+                )
+
+            remapped = remap.as_targets([selected_target])
+            guided_ids: set[str] = set()
+            view_path = (
+                self.private_root
+                / "oracle_attack_views"
+                / f"{state.task_id}__{spec.variant_id}.json"
+            )
+            if view_path.is_file():
+                view = OracleAttackView.model_validate(
+                    json.loads(view_path.read_text(encoding="utf-8"))
+                )
+                location = view.locations[0]
+                guided_ids = {
+                    item.target_id
+                    for item in [selected_target]
+                    if item.file == location.file
+                    and item.line_start is not None
+                    and item.line_end is not None
+                    and not (
+                        item.line_end < location.start_line
+                        or item.line_start > location.end_line
+                    )
+                }
             variant_targets = base_targets.model_copy(
                 update={
                     "targets": [
                         item.model_copy(
-                            update={
-                                "oracle_guided": bool(
-                                    realization is not None
-                                    and realization.bound_target_id == item.target_id
-                                )
-                            }
+                            update={"oracle_guided": item.target_id in guided_ids}
                         )
-                        for item in base_targets.targets
+                        for item in remapped
                     ],
-                    "safe_decoys": (
-                        realization.safe_decoys if realization is not None else []
-                    )
+                    "safe_decoys": decoys,
                 }
             )
             atomic_write_json(
@@ -726,28 +1309,36 @@ class CampaignRunner:
                 patches_dir / f"{spec.variant_id}.json",
                 {
                     "variant_id": spec.variant_id,
+                    "condition_id": variant.condition_id or spec.variant_id,
+                    "target_ref": variant.target_ref,
+                    "base_variant_id": base_variant_id,
                     "kind": spec.kind,
+                    "tier": str(spec.tier),
                     "payload_id": spec.payload_id,
                     "method_id": effective_spec.method_id,
                     "carrier": effective_spec.carrier,
                     "goal": effective_spec.goal,
                     "knowledge": spec.knowledge,
-                    "payload": (
-                        realization.model_dump(
-                            mode="json",
-                            exclude={"spec", "safe_decoys", "bound_target_id"},
-                        )
-                        if realization is not None
+                    "generation": (
+                        {
+                            "manifest_sha256": build.generation_manifest_sha256,
+                            "candidate_id": build.candidate_id,
+                            "candidates": len(manifest.candidates),
+                            "selection": manifest.selection.model_dump(mode="json"),
+                        }
+                        if manifest is not None
                         else None
                     ),
                     "edits": [
                         edit.model_dump(mode="json") for edit in effective_spec.edits
                     ],
                     "applied": [item.model_dump(mode="json") for item in build.edits],
+                    "remap_sha256": remap.remap_sha256,
                     "base_tree_sha256": build.base_tree_sha256,
                     "tree_sha256": build.tree_sha256,
                 },
             )
+            builds.append(build)
         freeze = VariantFreeze(
             task_id=state.task_id,
             source_tree_sha256=tree_digest(source_dir),
@@ -776,6 +1367,21 @@ class CampaignRunner:
         store: TaskStateStore,
         plan: PlanDoc,
     ) -> TaskState:
+        framework_config = self.agent_env_overrides.get("OPENCODE_CONFIG")
+        if framework_config:
+            framework_path = Path(framework_config)
+            label = f"framework_config:{framework_path.name}"
+            expected = self.agent_external_file_sha256.get(label)
+            if not framework_path.is_file() or (
+                expected is not None and sha256_file(framework_path) != expected
+            ):
+                raise CampaignError(
+                    "the agent framework configuration changed after it was loaded",
+                    details={
+                        "path": framework_path.as_posix(),
+                        "expected_sha256": expected,
+                    },
+                )
         freeze: VariantFreeze = getattr(self, "_freeze", None) or VariantFreeze.model_validate(
             json.loads(
                 (self.task_archive_dir(state.task_id) / "generation" / "variants_frozen.json").read_text(
@@ -789,11 +1395,53 @@ class CampaignRunner:
         failed: list[str] = list(state.failed_run_ids)
         ineligible: list[str] = list(state.ineligible_run_ids)
         attestations: list[IsolationAttestation] = []
-        for repetition in range(1, plan_item.repetitions + 1):
-            for variant in plan_item.variants:
+        variant_by_id = {item.variant_id: item for item in plan_item.variants}
+        expected_cells = {
+            (repetition, variant.variant_id)
+            for repetition in range(1, plan_item.repetitions + 1)
+            for variant in plan_item.variants
+        }
+        scheduled_cells = {
+            (item.repetition, item.variant_id) for item in plan_item.run_order
+        }
+        if plan_item.run_order and (
+            scheduled_cells != expected_cells
+            or len(plan_item.run_order) != len(expected_cells)
+        ):
+            raise CampaignError(
+                "the frozen run order does not cover every audit cell exactly once",
+                details={
+                    "missing": sorted(expected_cells - scheduled_cells),
+                    "unexpected": sorted(scheduled_cells - expected_cells),
+                    "scheduled_count": len(plan_item.run_order),
+                    "expected_count": len(expected_cells),
+                },
+            )
+        schedule = (
+            [(item.repetition, variant_by_id[item.variant_id]) for item in plan_item.run_order]
+            if plan_item.run_order
+            else [
+                (repetition, variant)
+                for repetition in range(1, plan_item.repetitions + 1)
+                for variant in plan_item.variants
+            ]
+        )
+        for repetition, variant in schedule:
+            if variant.variant_id not in by_variant:
+                raise CampaignError(
+                    "the frozen run order references a variant tree that is missing",
+                    details={"variant_id": variant.variant_id},
+                )
+            else:
                 build = by_variant[variant.variant_id]
                 run_id = stable_id("RUN", state.task_id, variant.variant_id, repetition)
                 if run_id in state.scored_run_ids:
+                    continue
+                existing_run = self.task_archive_dir(state.task_id) / "runs" / run_id / "run.json"
+                if run_id in runs and existing_run.is_file():
+                    # A previous process may have stopped after the model call but
+                    # before the audit phase advanced.  Reuse the immutable run
+                    # instead of silently paying for and sampling the model twice.
                     continue
                 layout = self.layout(state.task_id, run_id, variant.variant_id, variant.kind)
                 layout.reset_exposed()
@@ -812,9 +1460,11 @@ class CampaignRunner:
                         },
                     )
                 egress = probe_egress(self.config.isolation.egress)
-                env, env_record = build_agent_environment(
+                env, env_record = build_restricted_agent_environment(
                     self.config.isolation.egress,
-                    keep=(),
+                    allowlist=self.agent_env_allowlist,
+                    inference_names=self.agent_env_names,
+                    fixed_env=self.agent_env_overrides,
                 )
                 env["VULNMIRAGE_TASK_FILE"] = task_file.as_posix()
                 env["VULNMIRAGE_OUTPUT_DIR"] = layout.output_dir.as_posix()
@@ -845,11 +1495,19 @@ class CampaignRunner:
                         status="ineligible_isolation",
                         error=attestation.eligibility,
                     )
+                trace = normalize_trace(
+                    result.stdout_path,
+                    run_dir,
+                    adapter=self.trace_adapter,
+                    repo_root=layout.repo_dir,
+                    secret_values=(env.get(name, "") for name in self.agent_env_names),
+                )
                 record = RunRecord(
                     run_id=run_id,
                     task_id=state.task_id,
                     variant_set_id=plan.variant_set_id,
                     variant_id=variant.variant_id,
+                    target_ref=variant.target_ref,
                     variant_kind=variant.kind,
                     method_id=variant.method_id,
                     carrier=variant.carrier,
@@ -858,10 +1516,16 @@ class CampaignRunner:
                     execution_status=result.status,
                     exit_code=result.exit_code,
                     duration_seconds=result.duration_seconds,
-                    tier=None,
+                    tier=variant.tier,
                     model=self.model_label,
+                    agent_profile=self.agent_profile,
+                    agent_config_sha256=self.agent_config_sha256,
+                    agent_external_file_sha256=self.agent_external_file_sha256,
                     isolation_eligibility=attestation.eligibility,
                     exposure_root=layout.repo_dir.as_posix(),
+                    trace_status=str(trace["status"]),
+                    trace_completeness=str(trace["completeness"]),
+                    trace_events=int(trace["events"]),
                 )
                 atomic_write_json(run_dir / "run.json", record)
                 atomic_write_json(
@@ -871,16 +1535,39 @@ class CampaignRunner:
                         "task_id": state.task_id,
                         "variant_set_id": plan.variant_set_id,
                         "variant_id": variant.variant_id,
+                        "target_ref": variant.target_ref,
+                        "condition_id": variant.condition_id or variant.variant_id,
+                        "tier": variant.tier,
+                        "candidate_id": build.candidate_id,
                         "purpose": "evaluation",
                         "isolation_eligibility": attestation.eligibility,
                         "egress_verdict": egress.verdict,
+                        "trace_status": trace["status"],
+                        "trace_completeness": trace["completeness"],
+                        "trace_manifest": "trace_manifest.json",
+                        "agent_profile": self.agent_profile,
+                        "agent_config_sha256": self.agent_config_sha256,
+                        "agent_external_file_sha256": self.agent_external_file_sha256,
                     },
                 )
                 self._collect_answer(run_dir, layout)
                 if run_id not in runs:
                     runs.append(run_id)
+                if result.status != "success" and run_id not in failed:
+                    failed.append(run_id)
                 if attestation.verdict != "pass" and run_id not in ineligible:
                     ineligible.append(run_id)
+                # Persist after every expensive agent invocation.  The phase stays
+                # unchanged until all cells finish, but resume can now skip calls
+                # that already have a frozen run record.
+                state = state.model_copy(
+                    update={
+                        "run_ids": runs,
+                        "failed_run_ids": failed,
+                        "ineligible_run_ids": ineligible,
+                    }
+                )
+                store.save(state)
                 layout.cleanup()
         state = state.model_copy(
             update={
@@ -1049,19 +1736,24 @@ class CampaignRunner:
 
     # ----------------------------------------------------- phase: mechanism
     def _phase_mechanism(
-        self, state: TaskState, plan_item: PlanTask, store: TaskStateStore
+        self,
+        state: TaskState,
+        plan_item: PlanTask,
+        store: TaskStateStore,
+        *,
+        advance: bool = True,
     ) -> TaskState:
         archive_dir = self.task_archive_dir(state.task_id)
         freeze = VariantFreeze.model_validate(
             json.loads((archive_dir / "generation" / "variants_frozen.json").read_text(encoding="utf-8"))
         )
         by_variant = {item.variant_id: item for item in freeze.builds}
-        target_set = json.loads(
+        default_target_set = json.loads(
             (self.private_root / "targets" / f"{state.task_id}.json").read_text(encoding="utf-8")
         )
-        target_files = sorted({str(item["file"]) for item in target_set.get("targets", [])})
         observations: list[RunObservation] = []
         payload_texts: dict[str, str] = {}
+        exposure_payload_texts: dict[str, dict[str, str]] = {}
         detections: dict[str, dict[str, list[str]]] = {}
         reports: dict[str, str] = {}
         for run_id in state.run_ids:
@@ -1084,6 +1776,18 @@ class CampaignRunner:
                 reports[run_id] = report_path.read_text(encoding="utf-8", errors="ignore")[:50_000]
             payload_paths = tuple(build.files_touched) if build else ()
             variant_id = str(run_payload.get("variant_id"))
+            variant_target_path = (
+                self.private_root
+                / "targets"
+                / f"{state.task_id}__{variant_id}.json"
+            )
+            run_target_set = (
+                json.loads(variant_target_path.read_text(encoding="utf-8"))
+                if variant_target_path.is_file()
+                else default_target_set
+            )
+            run_targets = list(run_target_set.get("targets", []))
+            target_files = sorted({str(item["file"]) for item in run_targets})
             variant_tree = self.layout(state.task_id, run_id, variant_id, "x").variant_dir
             patch_path = archive_dir / "patches" / f"{variant_id}.json"
             patch_payload = (
@@ -1100,22 +1804,27 @@ class CampaignRunner:
                 rendered_text = rendered_by_path.get(path)
                 if rendered_text:
                     payload_texts[f"{variant_id}:{path}"] = rendered_text[:4000]
+                    exposure_payload_texts.setdefault(variant_id, {})[path] = rendered_text[:4000]
                     continue
                 candidate = variant_tree / path
                 if candidate.is_file():
-                    payload_texts[f"{variant_id}:{path}"] = candidate.read_text(
+                    text = candidate.read_text(
                         encoding="utf-8", errors="ignore"
                     )[:4000]
+                    payload_texts[f"{variant_id}:{path}"] = text
+                    exposure_payload_texts.setdefault(variant_id, {})[path] = text
             observations.append(
                 RunObservation(
                     run_id=run_id,
                     variant_id=str(run_payload.get("variant_id")),
                     kind=str(run_payload.get("variant_kind")),
+                    repetition=int(run_payload.get("repetition") or 1),
+                    target_ref=run_payload.get("target_ref"),
                     method_id=run_payload.get("method_id"),
                     carrier=run_payload.get("carrier"),
                     goal=run_payload.get("goal"),
                     payload_paths=payload_paths,
-                    target_ids=tuple(item["target_id"] for item in target_set.get("targets", [])),
+                    target_ids=tuple(item["target_id"] for item in run_targets),
                     target_files=tuple(target_files),
                     run_dir=run_dir,
                     artifacts={
@@ -1126,7 +1835,11 @@ class CampaignRunner:
                     },
                 )
             )
-        exposure = analyze_exposure(observations, task_id=state.task_id, payload_texts=None)
+        exposure = analyze_exposure(
+            observations,
+            task_id=state.task_id,
+            payload_texts=exposure_payload_texts,
+        )
         comparison = compare_trajectories(observations, task_id=state.task_id)
         mechanism = assess_mechanisms(
             observations,
@@ -1148,13 +1861,18 @@ class CampaignRunner:
                 "exposure is established from tool-result records, not from file access alone",
             ],
         )
-        return store.advance(
-            state, "mechanism_analysis", detail=f"status={mechanism.status}"
-        )
+        if not advance:
+            return state
+        return store.advance(state, "mechanism_analysis", detail=f"status={mechanism.status}")
 
     # ------------------------------------------------------------ phase: archive
     def _phase_archive(
-        self, state: TaskState, plan_item: PlanTask, store: TaskStateStore
+        self,
+        state: TaskState,
+        plan_item: PlanTask,
+        store: TaskStateStore,
+        *,
+        advance: bool = True,
     ) -> TaskState:
         archive_dir = self.task_archive_dir(state.task_id)
         attestations = getattr(self, "_attestations", []) or self._load_attestations(state)
@@ -1193,6 +1911,8 @@ class CampaignRunner:
             ),
         }
         atomic_write_json(archive_dir / "artifact_manifest.json", manifest)
+        if not advance:
+            return state
         return store.advance(state, "archived", detail=f"{len(entries)} artefact(s) hashed")
 
     def _load_attestations(self, state: TaskState) -> list[IsolationAttestation]:
@@ -1271,16 +1991,29 @@ class CampaignRunner:
 
     def analyze(self, task_id: str) -> dict[str, object]:
         """Recompute the mechanism artefacts from stored runs (no agent, no network)."""
-        state = TaskStateStore(self.root).load(task_id)
+        store = TaskStateStore(self.root)
+        state = store.load(task_id)
         if state is None:
             raise CampaignError("unknown task state", details={"task_id": task_id})
-        self._phase_mechanism(state, plan_task(self.load_or_plan(), task_id), TaskStateStore(self.root))
+        plan_item = plan_task(self.load_or_plan(), task_id)
+        self._phase_mechanism(state, plan_item, store, advance=False)
+        # Analysis artefacts participate in the archive hash inventory. Rebuild
+        # that inventory without moving a completed task backwards in the state
+        # machine, then verify it immediately.
+        self._phase_archive(state, plan_item, store, advance=False)
+        verification = self.verify_archive(task_id)
+        if not verification["ok"]:
+            raise CampaignError(
+                "offline analysis produced an unverifiable archive",
+                details=verification,
+            )
         analysis_dir = self.task_archive_dir(task_id) / "analysis" / f"{task_id}-comparison"
         return {
             "ok": True,
             "task_id": task_id,
             "analysis": analysis_dir.as_posix(),
             "artefacts": sorted(item.name for item in analysis_dir.iterdir() if item.is_file()),
+            "archive_verified": True,
         }
 
 

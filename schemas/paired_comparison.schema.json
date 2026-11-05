@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attacked_recall": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Attacked Recall"
+    },
+    "attacked_variant_id": {
+      "title": "Attacked Variant Id",
+      "type": "string"
+    },
+    "clean_recall": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Clean Recall"
+    },
+    "clean_variant_id": {
+      "title": "Clean Variant Id",
+      "type": "string"
+    },
+    "hidden_target_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Hidden Target Ids",
+      "type": "array"
+    },
+    "induced_decoy_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Induced Decoy Ids",
+      "type": "array"
+    },
+    "interpretation": {
+      "default": "",
+      "title": "Interpretation",
+      "type": "string"
+    },
+    "paired_repetitions": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Paired Repetitions",
+      "type": "array"
+    },
+    "recall_delta": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recall Delta"
+    },
+    "recall_deltas": {
+      "items": {
+        "type": "number"
+      },
+      "title": "Recall Deltas",
+      "type": "array"
+    },
+    "severity_shift": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Severity Shift"
+    },
+    "target_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Ref"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tier": {
+      "title": "Tier",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "clean_variant_id",
+    "attacked_variant_id",
+    "tier"
+  ],
+  "title": "PairedComparison",
+  "type": "object"
+}

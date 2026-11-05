@@ -30,7 +30,12 @@ BUNDLE_FILES: tuple[str, ...] = (
 )
 
 #: Optional files: present only when the producing stage supported them.
-OPTIONAL_BUNDLE_FILES: tuple[str, ...] = ("file_access.jsonl", "tool_calls.jsonl")
+OPTIONAL_BUNDLE_FILES: tuple[str, ...] = (
+    "file_access.jsonl",
+    "tool_calls.jsonl",
+    "trace_manifest.json",
+    "trace_completeness.json",
+)
 
 #: Names/content that mean the oracle leaked into the bundle.
 _ORACLE_NAME_PREFIXES = ("target-", "oracle")

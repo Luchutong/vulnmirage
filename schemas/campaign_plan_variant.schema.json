@@ -2,6 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "base_variant_id": {
+      "default": "",
+      "title": "Base Variant Id",
+      "type": "string"
+    },
+    "candidate_budget": {
+      "default": 1,
+      "title": "Candidate Budget",
+      "type": "integer"
+    },
     "carrier": {
       "anyOf": [
         {
@@ -14,6 +24,11 @@
       "default": null,
       "title": "Carrier"
     },
+    "condition_id": {
+      "default": "",
+      "title": "Condition Id",
+      "type": "string"
+    },
     "edit_count": {
       "default": 0,
       "title": "Edit Count",
@@ -25,6 +40,11 @@
       },
       "title": "Edit Paths",
       "type": "array"
+    },
+    "generator_profile": {
+      "default": "default",
+      "title": "Generator Profile",
+      "type": "string"
     },
     "goal": {
       "default": "none",
@@ -76,6 +96,11 @@
       "default": null,
       "title": "Reproduction Status"
     },
+    "selection_policy": {
+      "default": "semantic_fit_then_deterministic_tiebreak",
+      "title": "Selection Policy",
+      "type": "string"
+    },
     "source_url": {
       "anyOf": [
         {
@@ -87,6 +112,23 @@
       ],
       "default": null,
       "title": "Source Url"
+    },
+    "target_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Ref"
+    },
+    "tier": {
+      "default": "T0",
+      "title": "Tier",
+      "type": "string"
     },
     "variant_id": {
       "title": "Variant Id",

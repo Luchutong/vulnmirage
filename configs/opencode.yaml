@@ -1,23 +1,48 @@
 schema_version: "1.0"
 
+# ===========================================================================
 # One audit = one OpenCode process, executed by the campaign as
-# `campaign run --agent configs/opencode.yaml`.
 #
-# mode: stdout  -> the agent prints; the harness captures stdout and extracts the
+#   python -m vulnmirage campaign run --plan <plan.json> \
+#     --agent configs/opencode.yaml [--agent-profile glm-4.7]
+#
+# This file describes EVERY model this project uses. Pick one with
+# `--agent-profile`; without it `default_profile` is selected. The campaign
+# records the selected profile name and the resolved argv with each run, so a
+# run can never be attributed to "some model in that file".
+#
+# How the pieces combine
+#   top level   shared defaults for every profile (mode, extractor, argv, env)
+#   profiles    per-model `model`, `model_label`, and `requires_env`
+#   {model}     inside argv is replaced by the profile's model id
+#   {repo}      exposed workspace of this variant (required placeholder)
+#   {prompt}    path to the normalized task text (identical across variants)
+#
+# mode: stdout -> the agent prints; the harness captures stdout and extracts the
 #                  final JSON answer from the JSONL event stream. Nothing is
-#                  repaired: if no answer block is found the run is a format failure.
-# {repo}        -> the exposed workspace of this variant (required placeholder).
-# {prompt}      -> path to the normalized task text (identical for every variant).
+#                  repaired: if no answer block is found the run is a format
+#                  failure, not a detection result.
 #
-# Credentials are referenced by NAME only; the value is read from the environment
-# and never appears in argv, config or any recorded artifact.
+# Credentials are referenced by NAME only. The value is read from the
+# environment (see .env.example) and never appears in argv, config or any
+# recorded artifact.
+# ===========================================================================
+
 mode: stdout
 answer_extractor: jsonl_events
+trace_adapter: opencode_jsonl
+framework_config_file: opencode.json
+timeout_seconds: 1200
+
+# Same command line for every model; only the model id changes.
+# `--auto` lets the read-only auditor agent use tools without prompting, and
+# `--dir {repo}` pins the working tree so the agent cannot wander outside it.
 argv:
   - opencode.cmd
+  - --pure
   - run
   - --model
-  - deepseek/deepseek-chat
+  - "{model}"
   - --agent
   - vulnmirage-auditor
   - --format
@@ -25,11 +50,12 @@ argv:
   - --auto
   - --dir
   - "{repo}"
+  - --file
   - "{prompt}"
-timeout_seconds: 1200
-model_label: deepseek-chat
-requires_env:
-  - DEEPSEEK_API_KEY
+  - "Follow the attached benchmark task exactly and return only its required JSON envelope."
+
+# Only these variables are copied into the auditor's environment; the model key
+# named by the selected profile is added on top and redacted from the trace.
 env_allowlist:
   - PATH
   - PATHEXT
@@ -42,3 +68,45 @@ env_allowlist:
   - USERPROFILE
   - LANG
   - LC_ALL
+
+default_profile: deepseek-chat
+
+profiles:
+  # Cheapest option and the default for pilots. It is also the least obedient
+  # about the "final message is exactly one JSON object" rule: it more often
+  # emits a markdown report, which shows up as `format_failure` in the run
+  # record. Use it for pipeline checks, not for the main comparison.
+  deepseek-chat:
+    model: deepseek/deepseek-chat
+    model_label: deepseek-chat
+    requires_env:
+      - DEEPSEEK_API_KEY
+    description: DeepSeek chat; fast, more format failures than the reasoner.
+
+  # Same provider, thinking mode. Slower and more expensive per task, but it
+  # follows the output contract more reliably, so it is the better victim for
+  # the T0-T2 comparison.
+  deepseek-reasoner:
+    model: deepseek/deepseek-reasoner
+    model_label: deepseek-reasoner
+    requires_env:
+      - DEEPSEEK_API_KEY
+    description: DeepSeek reasoner; higher contract compliance, higher cost.
+
+  # Zhipu GLM. Second provider on purpose: a mechanism that only works against
+  # one vendor's style is a weaker claim, so the same variant set is run again
+  # with this profile.
+  glm-4.7:
+    model: zhipu/glm-4.7
+    model_label: glm-4.7
+    requires_env:
+      - ZHIPU_API_KEY
+    description: Zhipu GLM 4.7 via the OpenAI-compatible endpoint.
+
+  # Alibaba DashScope coder model; the third provider for cross-model checks.
+  qwen3-coder-plus:
+    model: dashscope/qwen3-coder-plus
+    model_label: qwen3-coder-plus
+    requires_env:
+      - DASHSCOPE_API_KEY
+    description: Qwen3 Coder Plus via DashScope compatible mode.
