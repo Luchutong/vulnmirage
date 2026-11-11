@@ -13,6 +13,7 @@
 | 文件 | 作用 |
 | --- | --- |
 | `README.md` | 总览：一次实验的链路、快速开始、被验证而非被声明的性质、已知局限。 |
+| `README_CN.md` | 中文总览：与英文 README 对齐的设计、分类、安装、实验命令、产物、进度与路线图。 |
 | `pyproject.toml` | 打包与工具配置：运行依赖（pydantic / PyYAML）、`vulnmirage` 命令入口、pytest（`integration` / `security` marker）、ruff、mypy。 |
 | `.env` | 本机凭据（真实 key），已 gitignore，不属仓库内容。 |
 | `.env.example` | 需要的环境变量名：`DEEPSEEK_API_KEY`、`ZHIPU_API_KEY`、`DASHSCOPE_API_KEY`（由 agent 配置的 `requires_env` 声明）。 |

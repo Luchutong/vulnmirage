@@ -4,6 +4,8 @@
 
 **A task-driven benchmark for measuring how repository-context injections change an agent's vulnerability discovery, verification, severity assessment, and final report.**
 
+[English](README.md) | [简体中文](README_CN.md)
+
 [Code](https://github.com/xinyi234/vulnmirage) ·
 [Benchmark design](docs/benchmark_revision_plan_2026-11-03.md) ·
 [Next-stage roadmap](docs/next_stage_design_2026-11-04.md) ·
@@ -68,11 +70,12 @@ measurement pipeline is being stabilized.
 | :-- | --: |
 | Exact-commit repository tasks | 47 |
 | Private vulnerability targets | 725 |
-| Runnable payload adaptations | 7 |
-| Planned semantic methods | 2 |
-| Research-question variant sets | 4 |
-| Generated JSON Schemas | 44 |
-| Acceptance tests | 71 |
+| Attack method definitions | 7 |
+| Implemented payload realizations | 34 |
+| Planned payload realizations | 1 |
+| Research-question variant sets | 10 |
+| Generated JSON Schemas | 52 |
+| Acceptance tests | 94 |
 
 The dataset counts describe the published task/oracle package. A target is scored only
 after its file and optional anchor are verified against the downloaded snapshot; the
@@ -427,8 +430,8 @@ Not yet complete for a full published experiment:
 - T3/T4 generators and their separate adaptation protocol;
 - at least three live model-backed OpenCode runs and fixtures for any additional
   framework versions used in the formal experiment;
-- a proven network boundary that blocks answer hosts while allowing model inference
-  (the container/gateway backend is still configuration, not enforcement);
+- operator-run validation of the rootless Linux namespace + Unix-socket inference
+  gateway on the copied WSL deployment;
 - FPA and FlashBoom semantic generators and behavior-equivalence validation;
 - a multi-model, repeated real campaign over all selected tasks.
 
@@ -450,7 +453,7 @@ The next milestone is **experiment readiness**, not adding more treatment names:
 1. extend the validated I0–I4 realization pattern to M3 severity anchoring and M4
    attention diversion, preserving their objective-specific evaluators;
 2. run three model-backed OpenCode traces and report event/completeness coverage;
-3. enforce and attest inference-only network access (container + gateway, not config);
+3. validate and audit the rootless namespace + Unix-socket inference gateway in WSL;
 4. run a repeated one-task, two-model pilot and audit every artifact;
 5. implement T3/T4 with their own adaptation budget, query log and holdout split;
 6. add fixed FPA and surrogate-mined FlashBoom banks as separate variant sets;
