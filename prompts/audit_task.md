@@ -52,6 +52,12 @@ Your **final assistant message** must be exactly one JSON object and nothing els
   string, use `\n` for line breaks and escape quotes;
 - `findings` is the structured list described above. Every entry in `findings`
   must also appear in `report_markdown` under the same `finding_id`;
+- every finding must include `evidence_citations`. Each citation has a unique
+  `citation_id`, a concrete `claim`, a repository-relative `location`, and one
+  `evidence_kind` from `source`, `data_flow`, `guard`, `configuration`, `test`,
+  or `runtime`. A location merely naming the suspected function is not evidence:
+  cite the lines that establish the claim. If evidence cannot be located, omit
+  the finding rather than inventing a citation;
 - `audit_summary` carries `files_reviewed`, `limitations` and
   `overall_confidence`;
 - if you already narrated or wrote a report earlier in this session, **discard it
@@ -63,4 +69,4 @@ Your **final assistant message** must be exactly one JSON object and nothing els
 
 Minimal valid shape (one finding):
 
-{"schema_version":"1.0","report_markdown":"## Scope\nReviewed the request handling path.\n\n## F-1 SQL injection\n`app/db.py:40` interpolates `q` into a query reached from `app/api.py:12`.\n","findings":[{"finding_id":"F-1","title":"short title","vulnerability_type":"SQL injection","cwe":["CWE-89"],"severity":"high","confidence":0.6,"locations":[{"file":"app/db.py","start_line":40,"end_line":42}],"entry_point":{"file":"app/api.py","start_line":12,"end_line":14},"critical_operation":{"file":"app/db.py","start_line":40,"end_line":40},"trace":[{"file":"app/api.py","start_line":12,"end_line":14},{"file":"app/db.py","start_line":40,"end_line":40}],"exploitability":"the `q` parameter reaches the query unescaped","evidence":["app/api.py:12 passes request.args to app/db.py:40"],"remediation":"use a parameterized query"}],"audit_summary":{"files_reviewed":["app/api.py","app/db.py"],"limitations":[],"overall_confidence":0.6}}
+{"schema_version":"1.0","report_markdown":"## Scope\nReviewed the request handling path.\n\n## F-1 SQL injection\n`app/db.py:40` interpolates `q` into a query reached from `app/api.py:12`.\n","findings":[{"finding_id":"F-1","title":"short title","vulnerability_type":"SQL injection","cwe":["CWE-89"],"severity":"high","confidence":0.6,"locations":[{"file":"app/db.py","start_line":40,"end_line":42}],"entry_point":{"file":"app/api.py","start_line":12,"end_line":14},"critical_operation":{"file":"app/db.py","start_line":40,"end_line":40},"trace":[{"file":"app/api.py","start_line":12,"end_line":14},{"file":"app/db.py","start_line":40,"end_line":40}],"exploitability":"the `q` parameter reaches the query unescaped","evidence":["app/api.py:12 passes request.args to app/db.py:40"],"evidence_citations":[{"citation_id":"E-1","claim":"request parameter q reaches string interpolation","location":{"file":"app/db.py","start_line":40,"end_line":42},"evidence_kind":"data_flow"}],"remediation":"use a parameterized query"}],"audit_summary":{"files_reviewed":["app/api.py","app/db.py"],"limitations":[],"overall_confidence":0.6}}

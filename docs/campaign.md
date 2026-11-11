@@ -31,7 +31,7 @@ selection are on disk before any tree is built. `campaign generate` stops after
 # offline: read the task index, hash the normalized prompt, freeze conditions+tiers
 python -m vulnmirage campaign plan --config configs/experiment.yaml \
     --dataset ../VulnMirage_dataset \
-    --variant-set PayloadGen/variant_sets/core_tier_ablation.yaml \
+    --variant-set PayloadGen/variant_sets/generator_context_ablation.yaml \
     --workspace workspace/campaigns/tier-ablation/deepseek-reasoner \
     --limit 1 --target-limit 1
 
@@ -122,9 +122,9 @@ workspace/
                                      events.normalized.jsonl, tool_calls.jsonl,
                                      file_access.jsonl, trace_manifest.json,
                                      trace_completeness.json
-    evaluation/<run>/                score.json, matches.json, safe_decoy_matches.json,
-                                     output_consistency.json, untrusted_input.json,
-                                     verifier_attestation.json
+    evaluation/<run>/                score.json, matches.json, rubric_scores.json,
+                                     safe_decoy_matches.json, output_consistency.json,
+                                     untrusted_input.json, verifier_attestation.json
     analysis/<task>-comparison/      exposure.json, trajectory_comparison.json,
                                      mechanism_assessment.json, case_analysis.md
     leakage_controls.json            channel -> controlled/failed/unknown
@@ -151,13 +151,35 @@ rather than dropped from the denominator.
 See [leakage_channels.md](leakage_channels.md) for the channel list and the
 evidence each check produces.
 
-## Payload methods and tiers
+## Attack identity and generator provenance
 
-The active registry is `PayloadGen/registry.v2.yaml`; each method declares the tiers
-it supports and which generator backend realizes each one. The compact T0 baseline
-is `PayloadGen/variant_sets/core.yaml`; `core_tier_ablation.yaml` adds T1/T2 for the
-same methods so the ablation is a property of the condition set, not of a run-time
-flag.
+The active registry is `PayloadGen/registry.yaml`. A method defines one primary
+causal mechanism; a realization binds that method to one Objective, Surface and
+Intensity. The threat model is loaded separately and referenced by ID. A formal
+condition therefore freezes:
+
+```text
+threat_model_id × objective × method × surface × intensity × realization
+```
+
+T0–T4 describe generator context only. They are stored as `generator_tier` and
+must not be interpreted as attack intensity; intensity is `I0`–`I4` inside each
+method. `generator_context_ablation.yaml` is consequently a generator-context ablation:
+it holds the complete taxonomy identity fixed and changes only T0/T1/T2.
+
+The three `intensity_*.yaml` M2 sets perform the complementary experiment. Each
+fixes T2, Threat Model, Objective, Method and Surface, then varies I0–I4 with two
+realizations per level. The registry checks the declared dose before planning, and
+`aggregate.json` reports intensity results under a method-qualified key such as
+`M2-FALSE-EXPLOITABILITY-PREMISE/I2`; I-levels are not pooled across methods.
+
+```text
+python -m vulnmirage campaign plan --config configs/experiment.yaml \
+    --dataset ../VulnMirage_dataset \
+    --variant-set PayloadGen/variant_sets/intensity_false_exploitability.yaml \
+    --workspace workspace/campaigns/fep-intensity/deepseek-chat \
+    --limit 1 --target-limit 1 --dry-run
+```
 
 Every condition is generated, validated and selected before a tree is built:
 
@@ -201,12 +223,19 @@ flag, `default_profile` is used.
 | `argv` | the command writes the answer into `{output}` itself | `mode: argv` |
 | none | nothing is executed | omit `--agent` |
 
-Placeholders: `{repo}` is **required** (an audit that never receives the workspace
-is a configuration error), `{task}` and `{prompt}` are aliases for the normalized
-task path, `{output}` is the writable output directory, and `{model}` is replaced by
-the selected profile's model id. Credentials are referenced by **name** in
+The harness always starts the child with the exposed repository as its working
+directory. Placeholders remain available for frameworks that require explicit paths:
+`{repo}` is the repository, `{task}` and `{prompt}` are aliases for the normalized
+task path, `{output}` is writable output, and `{model}` is replaced by the selected
+profile's model id. Credentials are referenced by **name** in
 `requires_env` and are checked before the first run starts; only the selected
 profile's names are forwarded.
+
+若 agent 配置声明 `framework_version_command`，campaign 会在任何审计调用前以
+受限环境执行该只读命令。版本写入 `run.json`、`meta.json` 和
+`trace_manifest.json`；没有对应真实 CLI 夹具的 OpenCode 版本会被显式标记为
+`unvalidated`，该 trace 降级为 `partial`，不能静默进入机制结论。目前冻结的
+真实 CLI 兼容版本为 1.17.18 和原生 Linux 2.2.7。
 
 The supplied OpenCode agent additionally denies `bash`, `webfetch`, `codesearch`,
 editing and external-directory access. This removes repository-controlled network

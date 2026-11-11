@@ -36,6 +36,19 @@
           "title": "Context Fields Used",
           "type": "array"
         },
+        "dose": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dose"
+        },
         "edit_op": {
           "default": "create",
           "enum": [
@@ -65,14 +78,54 @@
           "title": "Generator",
           "type": "string"
         },
+        "generator_tier": {
+          "enum": [
+            "T0",
+            "T1",
+            "T2",
+            "T3",
+            "T4"
+          ],
+          "title": "Generator Tier",
+          "type": "string"
+        },
+        "intensity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intensity"
+        },
         "method_id": {
           "title": "Method Id",
+          "type": "string"
+        },
+        "objective": {
+          "default": "none",
+          "title": "Objective",
           "type": "string"
         },
         "placement_basis": {
           "default": "template",
           "title": "Placement Basis",
           "type": "string"
+        },
+        "primary_mechanism": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Primary Mechanism"
         },
         "provenance": {
           "additionalProperties": {
@@ -86,6 +139,18 @@
           "title": "Rationale",
           "type": "string"
         },
+        "realization_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Realization Id"
+        },
         "rendered_text": {
           "title": "Rendered Text",
           "type": "string"
@@ -94,6 +159,21 @@
           "default": 0,
           "title": "Seed",
           "type": "integer"
+        },
+        "surface": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Surface"
         },
         "target_file": {
           "anyOf": [
@@ -107,17 +187,6 @@
           "default": null,
           "title": "Target File"
         },
-        "tier": {
-          "enum": [
-            "T0",
-            "T1",
-            "T2",
-            "T3",
-            "T4"
-          ],
-          "title": "Tier",
-          "type": "string"
-        },
         "variant_id": {
           "title": "Variant Id",
           "type": "string"
@@ -127,7 +196,7 @@
         "candidate_id",
         "variant_id",
         "method_id",
-        "tier",
+        "generator_tier",
         "generator",
         "carrier",
         "rendered_text"
@@ -284,8 +353,32 @@
       "title": "Condition Id",
       "type": "string"
     },
+    "dose": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dose"
+    },
     "generated_at": {
       "title": "Generated At",
+      "type": "string"
+    },
+    "generator_tier": {
+      "enum": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "title": "Generator Tier",
       "type": "string"
     },
     "generator_version": {
@@ -311,6 +404,18 @@
       "title": "Input Hashes",
       "type": "object"
     },
+    "intensity": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intensity"
+    },
     "method_id": {
       "title": "Method Id",
       "type": "string"
@@ -321,6 +426,11 @@
       },
       "title": "Notes",
       "type": "array"
+    },
+    "objective": {
+      "default": "none",
+      "title": "Objective",
+      "type": "string"
     },
     "oracle_view_sha256": {
       "anyOf": [
@@ -333,6 +443,30 @@
       ],
       "default": null,
       "title": "Oracle View Sha256"
+    },
+    "primary_mechanism": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Primary Mechanism"
+    },
+    "realization_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Realization Id"
     },
     "remap_sha256": {
       "anyOf": [
@@ -362,20 +496,48 @@
       "title": "Snapshot Id",
       "type": "string"
     },
+    "surface": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Surface"
+    },
     "task_id": {
       "title": "Task Id",
       "type": "string"
     },
-    "tier": {
-      "enum": [
-        "T0",
-        "T1",
-        "T2",
-        "T3",
-        "T4"
+    "taxonomy_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
       ],
-      "title": "Tier",
-      "type": "string"
+      "default": null,
+      "title": "Taxonomy Version"
+    },
+    "threat_model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Threat Model Id"
     },
     "validations": {
       "items": {
@@ -407,7 +569,7 @@
     "variant_id",
     "condition_id",
     "method_id",
-    "tier",
+    "generator_tier",
     "seed",
     "generator_version",
     "clean_tree_sha256"

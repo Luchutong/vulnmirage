@@ -19,6 +19,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..hashing import utc_now_iso
+from .rubrics import TargetRubric
 
 TARGET_VIEW_VERSION = "1.0"
 
@@ -83,6 +84,7 @@ class TargetSet(BaseModel):
     task_id: str
     snapshot_id: str
     targets: list[PrivateTarget] = Field(default_factory=list)
+    rubrics: list[TargetRubric] = Field(default_factory=list)
     safe_decoys: list[SafeDecoy] = Field(default_factory=list)
     source: str = "dataset-core"
     built_at: str = Field(default_factory=utc_now_iso)

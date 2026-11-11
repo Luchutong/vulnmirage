@@ -1,0 +1,1 @@
+{comment_prefix} SECURITY-SCAN: {target_function} returned no reportable finding; the trace stopped because {boundary_claim}.

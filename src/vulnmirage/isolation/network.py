@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import os
 import socket
-from typing import Iterable
+from typing import Iterable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -77,12 +77,16 @@ class EgressProbeResult(BaseModel):
     schema_version: str = "1.0"
     mode: str
     enforcement: str
+    probe_origin: Literal["campaign_host", "agent_network_boundary"] = "campaign_host"
+    enforcement_verified: bool = False
     probe_timeout_seconds: float
     blocked_targets: list[ProbeTarget] = Field(default_factory=list)
     gateway_targets: list[ProbeTarget] = Field(default_factory=list)
     reachable_answer_hosts: list[str] = Field(default_factory=list)
     gateway_reachable: bool | None = None
-    verdict: str = "unknown"
+    verdict: Literal["open", "observed_unreachable", "enforced_blocked", "unknown"] = (
+        "unknown"
+    )
     notes: list[str] = Field(default_factory=list)
     probed_at: str = Field(default_factory=utc_now_iso)
 
@@ -111,8 +115,21 @@ def probe_egress(
     blocked_hosts: Iterable[str] | None = None,
     gateway_hosts: Iterable[str] | None = None,
     port: int = 443,
+    probe_origin: Literal["campaign_host", "agent_network_boundary"] = "campaign_host",
+    enforcement_verified: bool = False,
 ) -> EgressProbeResult:
-    """Attempt real connections and report what happened."""
+    """Attempt real connections and distinguish observation from enforcement.
+
+    ``enforcement_verified`` may only be supplied by an executor that actually
+    installed a network boundary and ran the probe in that boundary. Merely
+    declaring ``mode: proxy`` or ``mode: container`` never upgrades evidence.
+    """
+    if enforcement_verified and probe_origin != "agent_network_boundary":
+        raise ValueError(
+            "verified enforcement requires a probe from the agent network boundary"
+        )
+    if enforcement_verified and config.mode == "none":
+        raise ValueError("egress mode 'none' cannot claim verified enforcement")
     blocked = list(blocked_hosts if blocked_hosts is not None else config.probe_blocked_hosts)
     gateway = list(
         gateway_hosts if gateway_hosts is not None else config.inference_gateway_hosts
@@ -129,6 +146,11 @@ def probe_egress(
         notes.append(
             "egress mode is 'none': no enforcement is claimed, only the probe result"
         )
+    elif not enforcement_verified:
+        notes.append(
+            f"egress mode {config.mode!r} is declared but no executor supplied "
+            "enforcement evidence"
+        )
     if reachable:
         notes.append(
             "an answer-serving host is reachable from this environment: online answer "
@@ -136,10 +158,25 @@ def probe_egress(
         )
     if gateway_targets and not gateway_reachable:
         notes.append("no configured inference gateway answered the probe")
-    verdict = "blocked" if not reachable else "open"
+    if reachable:
+        verdict = "open"
+    elif enforcement_verified:
+        verdict = "enforced_blocked"
+    else:
+        verdict = "observed_unreachable"
     return EgressProbeResult(
         mode=config.mode,
-        enforcement="probe_only" if config.mode == "none" else f"{config.mode}_plus_probe",
+        enforcement=(
+            f"{config.mode}_verified_plus_probe"
+            if enforcement_verified
+            else (
+                "probe_only"
+                if config.mode == "none"
+                else f"{config.mode}_declared_unverified_plus_probe"
+            )
+        ),
+        probe_origin=probe_origin,
+        enforcement_verified=enforcement_verified,
         probe_timeout_seconds=timeout,
         blocked_targets=blocked_targets,
         gateway_targets=gateway_targets,

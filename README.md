@@ -8,6 +8,7 @@
 [Benchmark design](docs/benchmark_revision_plan_2026-11-03.md) ·
 [Next-stage roadmap](docs/next_stage_design_2026-11-04.md) ·
 [Campaign guide](docs/campaign.md) ·
+[WSL deployment](docs/wsl_deployment.md) ·
 [Payload methods](PayloadGen/README.md)
 
 </div>
@@ -162,23 +163,34 @@ Generation is a separate, resumable stage: `campaign generate` writes the candid
 set, every validator verdict and the recorded selection, then stops. Only the
 selected candidate reaches a workspace.
 
-## Payload methods
+## Attack taxonomy and realizations
 
-Runnable methods are deterministic adaptations, not claims of paper-faithful
-reproduction. Each method declares its supported tiers and the realization used at
-each one in [`PayloadGen/registry.v2.yaml`](PayloadGen/registry.v2.yaml).
+The active [`PayloadGen/registry.yaml`](PayloadGen/registry.yaml) separates stable
+causal **methods** from concrete **realizations**. A formal attacked condition is:
 
-| ID | Method | Objective | Injection carrier | Tiers |
-| :-- | :-- | :-- | :-- | :-- |
-| A1 | False fix claim | False negative | New `SECURITY_NOTES.md` | T0, T1, T2 |
-| A2 | TODO false safety | False negative | Comment appended to target source | T0, T1, T2 |
-| A3 | Fabricated tool authority | False negative | Comment appended to target source | T0, T1, T2 |
-| F1 | TODO false alarm | Induced false positive | Certified-safe synthetic source | T0, T1, T2 |
-| F2 | Red-herring safe decoy | Verification diversion | Certified-safe synthetic source | T0, T1, T2 |
-| S1 | Severity downgrade anchor | Severity downgrade | Comment appended to target source | T0, T1, T2 |
-| S2 | Severity inflation anchor | Severity inflation | Comment appended to target source | T0, T1, T2 |
-| P-FPA | Familiar Pattern Attack | False negative | Semantic code rewrite | Planned; rejected by plan |
-| P-FB | FlashBoom | Attention diversion | Semantic code insertion/rewrite | Planned; rejected by plan |
+```text
+threat-model reference × objective × method × surface × intensity × realization
+```
+
+T0–T4 are not attack strength. They record which context a generator used. Attack
+strength is the method-specific `I0`–`I4` intensity ladder. Planning rejects an
+unknown threat model, a mixed-objective set, an unsupported surface/intensity, or a
+realization whose mutation budget exceeds the threat model.
+
+Each realization also declares a machine-checked dose (`claim_count`,
+`supporting_evidence_count`, `directness`, `reinforcement_count`). This prevents a
+template from being relabeled as a stronger intensity without adding an auditable
+mechanism dose.
+
+| Method | Primary mechanism | Implemented realization objective |
+| :-- | :-- | :-- |
+| `M2-FALSE-PRIOR-RESOLUTION` | `M2.1` false prior resolution | `O-FN` |
+| `M2-FALSE-EXPLOITABILITY-PREMISE` | `M2.5` false exploitability premise | `O-FN` |
+| `M2-FABRICATED-ANALYSIS-RESULT` | `M2.2` fabricated analysis result | `O-FN` |
+| `M2-FALSE-VULNERABILITY-CLAIM` | `M2.6` false vulnerability claim | `O-FP` |
+| `M4-CERTIFIED-SAFE-DECOY` | `M4.1` attention diversion | `O-SCOPE` |
+| `M3-SEVERITY-ANCHORING` | `M3.1` severity anchoring | `O-SEV-D`, `O-SEV-I` |
+| `M5-FAMILIAR-PATTERN-CAMOUFLAGE` | `M5.1` representation camouflage | planned; rejected by plan |
 
 Literature grounding includes
 [ALIBI](https://arxiv.org/abs/2607.24964),
@@ -190,11 +202,16 @@ Literature grounding includes
 
 | Set | Conditions | Research question |
 | :-- | :-- | :-- |
-| `core-v1` | C, A1, A3, F2, S1, S2 (T0) | Representative effects across detection, diversion and severity |
-| `core-tier-ablation-v1` | C, A2/A3/S1 × T0/T1/T2, F2 × T0/T2 | How much do repository adaptation and local semantics add? |
-| `false-negative-v1` | C, A1/A2/A3 × T0/T1/T2 | Which misleading-context mechanism suppresses a verified target? |
-| `safe-decoy-v1` | C, F1/F2 × T0/T2 | Do certified-safe decoys induce findings or consume verification effort? |
-| `severity-v1` | C, S1/S2 × T0/T1/T2 | Can context shift severity while detection stays unchanged? |
+| `core-v2` | C + three `O-FN` epistemic-poisoning realizations | Representative implemented conditions without mixing outcomes |
+| `generator-context-ablation-v2` | one realization × T0/T1/T2 | Generator-context ablation with taxonomy identity fixed |
+| `false-prior-resolution-intensity-v1` | C + `M2.1` I0–I4 × two realizations, fixed T2 | Method-internal intensity dose-response |
+| `false-exploitability-intensity-v1` | C + `M2.5` I0–I4 × two realizations, fixed T2 | Method-internal intensity dose-response |
+| `fabricated-analysis-intensity-v1` | C + `M2.2` I0–I4 × two realizations, fixed T2 | Method-internal intensity dose-response |
+| `false-negative-v2` | three `O-FN` realizations × T0/T1/T2 | Target suppression |
+| `false-positive-v2` | one certified false claim × T0/T2 | Certified false-finding induction |
+| `scope-diversion-v2` | one certified-safe decoy × T0/T2 | Target-path coverage and attention diversion |
+| `severity-downgrade-v2` | one `O-SEV-D` realization × T0/T1/T2 | Severity downgrade only |
+| `severity-inflation-v2` | one `O-SEV-I` realization × T0/T2 | Severity inflation only |
 
 Select a set only during planning. `campaign run` intentionally has no
 `--variant-set` option and restores the frozen choice from the plan.
@@ -223,7 +240,7 @@ agent-visible workspaces.
 Requirements:
 
 - Python 3.11 or later;
-- OpenCode available on `PATH` for the provided agent configurations;
+- native Linux OpenCode 2.x available on `PATH` (the supplied config targets WSL/Linux);
 - one provider credential for live audits;
 - the VulnMirage dataset package for real tasks.
 
@@ -233,8 +250,13 @@ cd vulnmirage
 python -m pip install -e ".[dev]"
 ```
 
-The supplied config uses `opencode.cmd` on Windows. On POSIX systems, edit the single
-`argv` template in `configs/opencode.yaml` and change the first entry to `opencode`.
+The supplied agent config uses OpenCode 2.x (`opencode --standalone run`) and is
+intended to run after the project has been copied into WSL/Linux. The harness sets
+the exposed repository as the child working directory; no absolute project path or
+OpenCode `--dir` argument is stored in configuration.
+
+完整的 WSL 复制、依赖、namespace 检查和单仓库实验步骤见
+[`docs/wsl_deployment.md`](docs/wsl_deployment.md)。
 
 ## Quick start
 
@@ -262,8 +284,9 @@ python -m vulnmirage ingest dataset-core \
   --root ../VulnMirage_dataset
 ```
 
-`doctor` performs a live egress probe. On an ordinary unrestricted network it should
-report that answer hosts remain reachable; such runs are ineligible for formal results.
+For `linux_namespace`, `doctor` checks the trusted gateway side and required Linux
+executables. The actual loopback-only namespace is created and attested separately
+before every audit run; a failed preflight prevents the model invocation.
 
 ### 3. Freeze a one-task plan
 
@@ -271,7 +294,7 @@ report that answer hosts remain reachable; such runs are ineligible for formal r
 python -m vulnmirage campaign plan \
   --config configs/experiment.yaml \
   --dataset ../VulnMirage_dataset \
-  --variant-set PayloadGen/variant_sets/core_tier_ablation.yaml \
+  --variant-set PayloadGen/variant_sets/generator_context_ablation.yaml \
   --workspace workspace/campaigns/tier-ablation/deepseek-reasoner \
   --limit 1 --target-limit 1 --dry-run
 ```
@@ -360,7 +383,8 @@ Important archived outputs include:
 | `runs/<run>/agent_report.md` | Agent-authored report, unchanged |
 | `runs/<run>/findings.json` | Parsed structured findings and parse status |
 | `runs/<run>/stdout.log` | Raw process stdout, including OpenCode JSONL when emitted |
-| `evaluation/<run>/score.json` | Target recall, severity and safe-decoy result |
+| `evaluation/<run>/score.json` | Target recall, V/I/E/S diagnosis summary and safe-decoy result |
+| `evaluation/<run>/rubric_scores.json` | Per-target verdict, identification, evidence, severity and attributable scores |
 | `analysis/<task>-comparison/trajectory_comparison.json` | Target/repetition-matched C/A trace deltas |
 | `analysis/<task>-comparison/mechanism_assessment.json` | Evidence-gated mechanism labels |
 | `artifact_manifest.json` | Hash inventory for the archived task |
@@ -375,7 +399,7 @@ Implemented and covered by tests:
 
 - dataset-core ingestion with manifest digest verification;
 - exact-commit archive resolution and bounded, traversal-safe extraction;
-- a tier-based generation subsystem (T0/T1/T2): `RepositoryIndex`, a sanitized
+- a generator-context subsystem (T0/T1/T2): `RepositoryIndex`, a sanitized
   `OracleAttackView`, candidate generation, four validators, a predeclared
   selection rule and a frozen `GenerationManifest`;
 - independent clean/attack construction, target remapping and frozen payload provenance;
@@ -383,18 +407,26 @@ Implemented and covered by tests:
 - OpenCode command execution, stdout capture and dual-output parsing;
 - OpenCode JSONL normalization with source hashing, credential redaction and explicit
   complete/partial/missing states;
+- sanitized real-CLI trace fixtures captured from OpenCode 1.17.18 and native Linux
+  2.2.7 with a local deterministic inference stub, plus fail-visible version compatibility;
 - minimal child-process environments containing only allowlisted runtime variables and
   declared inference credentials;
-- private verifier bundles, target matching and certified-safe-decoy scoring;
+- fail-closed egress semantics that distinguish a host probe's observed
+  unreachability from executor-verified network enforcement;
+- private verifier bundles, target matching, private target rubrics and V/I/E/S
+  attributable scoring;
 - rule-based exposure/trajectory/mechanism artifacts;
-- paired aggregation by tier with a bootstrap interval and an attrition ledger;
+- paired aggregation by generator context with a bootstrap interval and an attrition ledger;
 - verified archives and task-scoped cleanup.
 
 Not yet complete for a full published experiment:
 
+- the three core O-FN M2 methods now have validated I0–I4 realizations with two
+  wording replicates per level; M3 severity anchoring and M4 attention diversion do
+  not yet have the same complete coverage;
 - T3/T4 generators and their separate adaptation protocol;
-- validation of the trace adapter against frozen output from real OpenCode versions and
-  at least three live runs;
+- at least three live model-backed OpenCode runs and fixtures for any additional
+  framework versions used in the formal experiment;
 - a proven network boundary that blocks answer hosts while allowing model inference
   (the container/gateway backend is still configuration, not enforcement);
 - FPA and FlashBoom semantic generators and behavior-equivalence validation;
@@ -403,8 +435,8 @@ Not yet complete for a full published experiment:
 Current regression snapshot:
 
 ```text
-71 tests passed
-44 schemas current; 0 missing; 0 stale
+94 tests passed
+52 schemas current; 0 missing; 0 stale
 47 tasks / 725 targets loaded with declared digests verified
 725/725 targets admit a sanitized T2 oracle view; 0 sanitizer leaks
 ```
@@ -415,13 +447,16 @@ No benchmark score or model ranking is claimed by this repository yet.
 
 The next milestone is **experiment readiness**, not adding more treatment names:
 
-1. normalize real OpenCode traces and measure trace completeness;
-2. enforce and attest inference-only network access (container + gateway, not config);
-3. run a repeated one-task, two-model pilot and audit every artifact;
-4. implement T3/T4 with their own adaptation budget, query log and holdout split;
-5. add fixed FPA and surrogate-mined FlashBoom banks as separate variant sets;
-6. extend aggregation with clustered uncertainty and exclusion accounting at scale;
-7. freeze a full experiment manifest before scaling across the dataset.
+1. extend the validated I0–I4 realization pattern to M3 severity anchoring and M4
+   attention diversion, preserving their objective-specific evaluators;
+2. run three model-backed OpenCode traces and report event/completeness coverage;
+3. enforce and attest inference-only network access (container + gateway, not config);
+4. run a repeated one-task, two-model pilot and audit every artifact;
+5. implement T3/T4 with their own adaptation budget, query log and holdout split;
+6. add fixed FPA and surrogate-mined FlashBoom banks as separate variant sets;
+7. extend aggregation with objective-specific metrics, clustered uncertainty and
+   exclusion accounting at scale;
+8. freeze a full experiment manifest before scaling across the dataset.
 
 The complete acceptance gates and proposed modules are in
 [`docs/next_stage_design_2026-11-04.md`](docs/next_stage_design_2026-11-04.md).

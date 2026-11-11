@@ -46,47 +46,85 @@ class PayloadRealization(BaseModel):
 
 
 def validate_payload_references(
-    specs: list[VariantSpecConfig], catalog_path: str | Path | None
+    specs: list[VariantSpecConfig],
+    catalog_path: str | Path | None,
+    *,
+    threat_model_id: str | None = None,
+    primary_objective: str | None = None,
 ) -> None:
-    """Refuse a variant whose payload is unknown, planned, or tier-unsupported."""
+    """Refuse a condition inconsistent with its realization or threat model."""
     from ..errors import UnsupportedTierError
 
-    referenced = [spec for spec in specs if spec.payload_id]
+    referenced = [spec for spec in specs if spec.realization_id]
     if not referenced:
         return
     if catalog_path is None:
         raise CampaignError(
-            "a variant references payload_id but campaign.payload_catalog is not configured"
+            "a variant references realization_id but campaign.payload_catalog is not configured"
         )
     methods = load_payload_catalog(catalog_path).by_id()
     for spec in referenced:
-        method = methods.get(str(spec.payload_id))
+        method = methods.get(str(spec.realization_id))
         if method is None:
             raise CampaignError(
-                "variant references an unknown payload",
-                details={"variant_id": spec.variant_id, "payload_id": spec.payload_id},
+                "variant references an unknown realization",
+                details={
+                    "variant_id": spec.variant_id,
+                    "realization_id": spec.realization_id,
+                },
             )
         if method.reproduction_status != "implemented_adaptation":
             raise CampaignError(
                 "planned payload cannot be used in an experiment",
                 details={
                     "variant_id": spec.variant_id,
-                    "payload_id": spec.payload_id,
+                    "realization_id": spec.realization_id,
                     "status": method.reproduction_status,
                 },
             )
         if spec.edits:
             raise CampaignError(
                 "payload-backed variants may not also declare inline edits",
-                details={"variant_id": spec.variant_id, "payload_id": spec.payload_id},
+                details={
+                    "variant_id": spec.variant_id,
+                    "realization_id": spec.realization_id,
+                },
             )
-        tier = str(spec.tier)
+        if threat_model_id and threat_model_id not in method.allowed_threat_models:
+            raise CampaignError(
+                "realization is not admitted by the selected threat model",
+                details={
+                    "variant_id": spec.variant_id,
+                    "realization_id": spec.realization_id,
+                    "threat_model_id": threat_model_id,
+                },
+            )
+        if primary_objective and method.objective != primary_objective:
+            raise CampaignError(
+                "variant set mixes objectives",
+                details={
+                    "variant_id": spec.variant_id,
+                    "expected": primary_objective,
+                    "actual": method.objective,
+                },
+            )
+        if spec.objective != "none" and spec.objective != method.objective:
+            raise CampaignError(
+                "variant objective contradicts its realization",
+                details={"variant_id": spec.variant_id, "actual": spec.objective},
+            )
+        if spec.method_id and spec.method_id != method.method_id:
+            raise CampaignError(
+                "variant method_id contradicts its realization",
+                details={"variant_id": spec.variant_id, "actual": spec.method_id},
+            )
+        tier = str(spec.generator_tier)
         if not method.supports(tier):
             raise UnsupportedTierError(
                 "payload method does not implement the declared tier",
                 details={
                     "variant_id": spec.variant_id,
-                    "payload_id": spec.payload_id,
+                    "realization_id": spec.realization_id,
                     "tier": tier,
                     "supported_tiers": method.supported_tiers,
                 },
@@ -102,6 +140,9 @@ def payload_asset_hashes(catalog_path: str | Path) -> dict[str, str]:
     source = Path(catalog_path).resolve()
     catalog = load_payload_catalog(source)
     result = {source.name: sha256_file(source)}
+    for relative in catalog.threat_model_files:
+        threat_model = (source.parent / relative).resolve()
+        result[threat_model.relative_to(source.parent).as_posix()] = sha256_file(threat_model)
     for method in catalog.methods:
         for relative in method.referenced_templates():
             template = resolve_template_path(source, relative)
@@ -140,11 +181,11 @@ def realize_payload(
     """Resolve one payload-backed variant into a normal structured edit."""
     catalog_source = Path(catalog_path).resolve()
     methods = load_payload_catalog(catalog_source).by_id()
-    method = methods.get(str(spec.payload_id))
+    method = methods.get(str(spec.realization_id))
     if method is None:
         raise CampaignError(
             "variant references an unknown payload",
-            details={"variant_id": spec.variant_id, "payload_id": spec.payload_id},
+            details={"variant_id": spec.variant_id, "realization_id": spec.realization_id},
         )
     validate_payload_references([spec], catalog_source)
     target = targets[0] if targets else None
@@ -153,7 +194,7 @@ def realize_payload(
             "target-aware payload requires a verified private target",
             details={"variant_id": spec.variant_id, "payload_id": method.payload_id},
         )
-    tier = str(spec.tier)
+    tier = str(spec.generator_tier)
     template_rel = method.template_for(tier)
     template_path = resolve_template_path(catalog_source, template_rel)
     template_text = template_path.read_text(encoding="utf-8")
@@ -164,14 +205,17 @@ def realize_payload(
         "target_function": (target.function or "the affected routine") if target else "",
         "expected_severity": "unknown",
         "variant_id": spec.variant_id,
+        "precondition": "the documented precondition",
+        "dangerous_effect": "the reviewed effect",
+        "boundary_claim": "the documented boundary remains in place",
     }
     rendered = render_template(template_text, values, payload_id=method.payload_id)
     edit, output_path = _place(method, target_file=target_file, rendered=rendered)
     realized_spec = spec.model_copy(
         update={
-            "method_id": spec.method_id or method.method_family,
+            "method_id": method.method_id,
             "carrier": spec.carrier or method.carrier,
-            "goal": method.objective,
+            "objective": method.objective,
             "edits": [edit],
         }
     )

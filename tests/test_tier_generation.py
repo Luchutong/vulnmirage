@@ -60,7 +60,7 @@ from vulnmirage.schemas import schema_index
 from vulnmirage.verifier.targets import PrivateTarget, TargetSet
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CATALOG = PROJECT_ROOT / "PayloadGen" / "registry.v2.yaml"
+CATALOG = PROJECT_ROOT / "PayloadGen" / "registry.yaml"
 
 
 # --------------------------------------------------------------------------- fixtures
@@ -85,7 +85,7 @@ def _private_target() -> PrivateTarget:
     )
 
 
-def _method(payload_id: str = "todo_false_safety_v1"):
+def _method(payload_id: str = "M2-FEP__S-COMMENT-Z-TARGET__I1__R01"):
     return load_payload_catalog(CATALOG).by_id()[payload_id]
 
 
@@ -166,8 +166,15 @@ def test_every_declared_implemented_method_tier_generates_a_selectable_candidate
                 condition_id=f"{method.method_id or method.method_family}-{tier}",
                 method_id=method.method_id or method.method_family,
                 method_family=method.method_family,
+                taxonomy_version="vm-atk-1.0",
+                threat_model_id="TM-REPOSITORY-CONTENT-01",
+                realization_id=method.realization_id,
                 tier=tier,
                 goal=method.objective,
+                primary_mechanism=method.primary_mechanism,
+                surface=method.surface.model_dump(mode="json"),
+                intensity=method.intensity,
+                dose=method.dose.model_dump(mode="json"),
                 carrier=method.carrier,
                 placement=method.placement,
                 output_path=method.output_path,
@@ -205,9 +212,28 @@ def test_every_declared_implemented_method_tier_generates_a_selectable_candidate
                 tier,
                 validation,
             )
+            assert manifest.dose == method.dose.model_dump(mode="json")
+            if (
+                method.method_id
+                in {
+                    "M2-FALSE-PRIOR-RESOLUTION",
+                    "M2-FALSE-EXPLOITABILITY-PREMISE",
+                    "M2-FABRICATED-ANALYSIS-RESULT",
+                }
+                and tier == "T2"
+            ):
+                semantics_used = (
+                    "oracle_view.local_semantics" in candidate.context_fields_used
+                )
+                assert semantics_used is (method.intensity in {"I2", "I3", "I4"})
             checked.add((method.payload_id, tier))
 
-    assert len(checked) == 21
+    expected = sum(
+        len(method.supported_tiers)
+        for method in catalog.methods
+        if method.reproduction_status == "implemented_adaptation"
+    )
+    assert len(checked) == expected
 
 
 def test_t0_generation_matches_the_preexisting_renderer_byte_for_byte(tmp_path):
@@ -215,7 +241,10 @@ def test_t0_generation_matches_the_preexisting_renderer_byte_for_byte(tmp_path):
     tokens = target_answer_tokens(core, task_id)
     private = _private_target()
     spec = VariantSpecConfig(
-        variant_id="A2-T0", kind="attack", tier="T0", payload_id="todo_false_safety_v1"
+        variant_id="A2-T0",
+        kind="attack",
+        generator_tier="T0",
+        realization_id="M2-FEP__S-COMMENT-Z-TARGET__I1__R01",
     )
     legacy = realize_payload(catalog_path=CATALOG, spec=spec, targets=[private])
 
@@ -370,7 +399,8 @@ def test_t2_generation_places_at_the_oracle_location_without_leaking_it(tmp_path
     for candidate in manifest.candidates:
         assert candidate.target_file == "app/handler.py"
         assert candidate.placement_basis == "oracle_view"
-        assert "oracle_view.local_semantics" in candidate.context_fields_used
+        assert "oracle_view.locations" in candidate.context_fields_used
+        assert "oracle_view.local_semantics" not in candidate.context_fields_used
         for forbidden in ("CVE-2024-99999", "CWE-89", "SELECT * FROM t"):
             assert forbidden not in candidate.rendered_text
     validation = manifest.validation_for(manifest.selection.selected_id)
@@ -498,36 +528,36 @@ def _payload_config(tmp_path: Path, dataset: Path, workspace: Path) -> Path:
     config_path = write_config(tmp_path, dataset, workspace)
     payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     payload["campaign"].pop("variants")
-    payload["campaign"]["payload_catalog"] = "PayloadGen/registry.v2.yaml"
+    payload["campaign"]["payload_catalog"] = "PayloadGen/registry.yaml"
     variants_file = tmp_path / "tier_variants.yaml"
     variants_file.write_text(
         yaml.safe_dump(
             {
-                "schema_version": "1.0",
+                "schema_version": "2.0",
+                "taxonomy_version": "vm-atk-1.0",
+                "threat_model_id": "TM-REPOSITORY-CONTENT-01",
+                "primary_objective": "O-FN",
                 "variant_set_id": "tier-fixture",
                 "research_question": "Does the tier change what is generated?",
                 "variants": [
-                    {"variant_id": "C", "kind": "clean", "goal": "none"},
+                    {"variant_id": "C", "kind": "clean"},
                     {
                         "variant_id": "A2-T0",
                         "kind": "attack",
-                        "tier": "T0",
-                        "payload_id": "todo_false_safety_v1",
-                        "goal": "false_negative",
+                        "generator_tier": "T0",
+                        "realization_id": "M2-FEP__S-COMMENT-Z-TARGET__I1__R01",
                     },
                     {
                         "variant_id": "A2-T1",
                         "kind": "attack",
-                        "tier": "T1",
-                        "payload_id": "todo_false_safety_v1",
-                        "goal": "false_negative",
+                        "generator_tier": "T1",
+                        "realization_id": "M2-FEP__S-COMMENT-Z-TARGET__I1__R01",
                     },
                     {
                         "variant_id": "A2-T2",
                         "kind": "attack",
-                        "tier": "T2",
-                        "payload_id": "todo_false_safety_v1",
-                        "goal": "false_negative",
+                        "generator_tier": "T2",
+                        "realization_id": "M2-FEP__S-COMMENT-Z-TARGET__I1__R01",
                     },
                 ],
             }
@@ -591,6 +621,15 @@ def test_pipeline_freezes_generation_before_building_trees(tmp_path):
     )
     assert t0_manifest["index_sha256"]
     assert t0_manifest["oracle_view_sha256"] is None
+    assert t0_manifest["taxonomy_version"] == "vm-atk-1.0"
+    assert t0_manifest["threat_model_id"] == "TM-REPOSITORY-CONTENT-01"
+    assert t0_manifest["objective"] == "O-FN"
+    assert t0_manifest["primary_mechanism"] == "M2.5"
+    assert t0_manifest["surface"] == {
+        "artifact": "S-COMMENT",
+        "zone": "Z-TARGET",
+    }
+    assert t0_manifest["intensity"] == "I1"
     selected_t0 = next(
         item
         for item in t0_manifest["candidates"]
@@ -613,11 +652,20 @@ def test_pipeline_freezes_generation_before_building_trees(tmp_path):
     for run_id in result["runs"]:
         run_dir = archive / "runs" / run_id
         record = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
-        tiers_by_run[record["variant_id"]] = record["tier"]
+        tiers_by_run[record["variant_id"]] = record["generator_tier"]
     assert tiers_by_run == {"C": "T0", "A2-T0": "T0", "A2-T1": "T1", "A2-T2": "T2"}
 
     patch = json.loads((archive / "patches" / "A2-T1.json").read_text(encoding="utf-8"))
-    assert patch["tier"] == "T1"
+    assert patch["generator_tier"] == "T1"
+    assert patch["objective"] == "O-FN"
+    assert patch["primary_mechanism"] == "M2.5"
+    assert patch["intensity"] == "I1"
+    assert patch["dose"] == {
+        "claim_count": 1,
+        "supporting_evidence_count": 0,
+        "directness": "explicit",
+        "reinforcement_count": 0,
+    }
     assert patch["generation"]["manifest_sha256"]
     assert patch["generation"]["candidate_id"]
     assert patch["remap_sha256"]
@@ -630,7 +678,10 @@ def test_pipeline_freezes_generation_before_building_trees(tmp_path):
 
     aggregate = runner.aggregate()
     assert aggregate["pairs"] == 3
-    assert set(aggregate["by_tier"]) == {"T0", "T1", "T2"}
+    assert set(aggregate["by_generator_tier"]) == {"T0", "T1", "T2"}
+    assert set(aggregate["by_intensity"]) == {
+        "M2-FALSE-EXPLOITABILITY-PREMISE/I1"
+    }
     assert aggregate["losses"]["runs"] == 4
     assert (workspace / "aggregate" / "aggregate.json").is_file()
 
@@ -725,17 +776,19 @@ def test_safe_decoy_condition_carries_a_semantic_certificate(tmp_path):
     variants_file.write_text(
         yaml.safe_dump(
             {
-                "schema_version": "1.0",
+                "schema_version": "2.0",
+                "taxonomy_version": "vm-atk-1.0",
+                "threat_model_id": "TM-REPOSITORY-CONTENT-01",
+                "primary_objective": "O-SCOPE",
                 "variant_set_id": "decoy-fixture",
                 "research_question": "Does the certified decoy reach a scorable state?",
                 "variants": [
-                    {"variant_id": "C", "kind": "clean", "goal": "none"},
+                    {"variant_id": "C", "kind": "clean"},
                     {
                         "variant_id": "F2-T0",
                         "kind": "attack",
-                        "tier": "T0",
-                        "payload_id": "redherring_safe_decoy_v1",
-                        "goal": "verification_diversion",
+                        "generator_tier": "T0",
+                        "realization_id": "M4-CSD__S-CODE-Z-PERIPHERAL__I2__R01",
                     },
                 ],
             }
@@ -765,12 +818,12 @@ def test_safe_decoy_condition_carries_a_semantic_certificate(tmp_path):
     assert len(decoys) == 1
     assert decoys[0]["proof_kind"] == "python_no_execution_subset_v1"
     assert decoys[0]["proof_sha256"]
-    assert decoys[0]["file"] == "examples/vulnmirage_release_probe.py"
+    assert decoys[0]["file"] == "examples/release_probe.py"
 
     variant_file = (
         workspace / "archives" / task_id / "patches" / "F2-T0.json"
     ).read_text(encoding="utf-8")
-    assert "examples/vulnmirage_release_probe.py" in variant_file
+    assert "examples/release_probe.py" in variant_file
     for run_id in result["runs"]:
         assert (
             workspace / "archives" / task_id / "evaluation" / run_id / "score.json"

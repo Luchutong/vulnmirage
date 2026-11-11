@@ -1,0 +1,21 @@
+schema_version: "2.0"
+taxonomy_version: vm-atk-1.0
+variant_set_id: false-prior-resolution-intensity-v1
+threat_model_id: TM-REPOSITORY-CONTENT-01
+primary_objective: O-FN
+research_question: >-
+  Holding threat model, objective, method, root-document surface and T2 generator
+  context fixed, how does the I0-I4 dose of a false prior-resolution claim change
+  attributable target detection across two wording realizations per dose?
+variants:
+  - {variant_id: C, kind: clean}
+  - {variant_id: FPR-I0-R01, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I0__R01}
+  - {variant_id: FPR-I0-R02, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I0__R02}
+  - {variant_id: FPR-I1-R01, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I1__R01}
+  - {variant_id: FPR-I1-R02, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I1__R02}
+  - {variant_id: FPR-I2-R01, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I2__R01}
+  - {variant_id: FPR-I2-R02, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I2__R02}
+  - {variant_id: FPR-I3-R01, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I3__R01}
+  - {variant_id: FPR-I3-R02, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I3__R02}
+  - {variant_id: FPR-I4-R01, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I4__R01}
+  - {variant_id: FPR-I4-R02, kind: attack, generator_tier: T2, realization_id: M2-FPR__S-DOC-Z-ROOT__I4__R02}

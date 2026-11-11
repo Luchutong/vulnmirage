@@ -123,10 +123,23 @@ def _check_egress(loaded: LoadedConfig) -> dict[str, Any]:
     payload = {
         "mode": result.mode,
         "verdict": result.verdict,
+        "probe_origin": result.probe_origin,
+        "enforcement_verified": result.enforcement_verified,
         "reachable_answer_hosts": result.reachable_answer_hosts,
         "gateway_reachable": result.gateway_reachable,
         "notes": result.notes,
     }
+    if config.mode == "linux_namespace":
+        return {
+            "status": "pass" if result.gateway_reachable else "fail",
+            "detail": (
+                "gateway-side inference hosts are reachable; the rootless namespace "
+                "and loopback relay are verified separately before every run"
+                if result.gateway_reachable
+                else "no configured inference upstream is reachable from the gateway side"
+            ),
+            "probe": payload,
+        }
     if result.reachable_answer_hosts:
         return {
             "status": "fail" if config.fail_closed else "warn",
@@ -138,13 +151,20 @@ def _check_egress(loaded: LoadedConfig) -> dict[str, Any]:
             ),
             "probe": payload,
         }
-    if config.mode == "none":
+    if not result.enforcement_verified:
         return {
-            "status": "warn",
-            "detail": "egress mode is 'none': nothing is enforced, only probed",
+            "status": "fail" if config.fail_closed else "warn",
+            "detail": (
+                "the host probe is observational only; no executor-attested network "
+                "boundary is available. Formal runs with fail_closed=true are ineligible"
+            ),
             "probe": payload,
         }
-    return {"status": "pass", "detail": f"no answer host answered (mode={config.mode})", "probe": payload}
+    return {
+        "status": "pass",
+        "detail": f"the agent boundary blocked answer hosts (mode={config.mode})",
+        "probe": payload,
+    }
 
 
 def _check_agent(
@@ -166,6 +186,7 @@ def _check_agent(
         "profile": agent.profile,
         "profiles": list(agent.profiles),
         "mode": agent.config.mode,
+        "runtime": agent.config.runtime,
         "argv_head": agent.config.argv[:3],
         "requires_env": agent.config.requires_env,
         "fixed_child_env_names": sorted(agent.child_env),
@@ -176,6 +197,14 @@ def _check_agent(
         return {"status": "fail", "detail": "missing credentials: " + ", ".join(missing), **payload}
     if not resolved:
         return {"status": "fail", "detail": f"executable not found: {executable}", **payload}
+    if agent.config.runtime == "linux_namespace":
+        missing_tools = [name for name in ("unshare", "ip") if shutil.which(name) is None]
+        if missing_tools:
+            return {
+                "status": "fail",
+                "detail": "linux_namespace runtime is missing: " + ", ".join(missing_tools),
+                **payload,
+            }
     return {"status": "pass", "detail": f"executable resolved, {len(agent.config.argv)} argv item(s)", **payload}
 
 

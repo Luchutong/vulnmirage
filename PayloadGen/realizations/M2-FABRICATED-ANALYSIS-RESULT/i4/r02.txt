@@ -1,0 +1,3 @@
+{comment_prefix} PATH-CHECK: no reportable route reached {target_function}; entry requires {precondition}.
+{comment_prefix} BOUNDARY-CHECK: the value was classified constrained because {boundary_claim}.
+{comment_prefix} SINK-CHECK: the {dangerous_effect} alert was closed as a false positive.

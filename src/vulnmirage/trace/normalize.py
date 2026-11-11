@@ -8,7 +8,11 @@ from typing import Any, Iterable
 
 from ..hashing import atomic_write_json, atomic_write_text, sha256_file
 from .completeness import assess_completeness
-from .models import OPENCODE_ADAPTER_VERSION, TraceManifest
+from .models import (
+    OPENCODE_ADAPTER_VERSION,
+    OPENCODE_VALIDATED_VERSIONS,
+    TraceManifest,
+)
 from .opencode import ParseResult, parse_opencode_jsonl
 
 TRACE_OUTPUTS = (
@@ -32,6 +36,7 @@ def normalize_trace(
     *,
     adapter: str,
     repo_root: str | Path,
+    framework_version: str | None = None,
     secret_values: Iterable[str] = (),
 ) -> dict[str, Any]:
     out = Path(output_dir)
@@ -40,6 +45,22 @@ def normalize_trace(
     adapter_version: str | None = None
     result = ParseResult()
     limitations: list[str] = []
+    framework: str | None = None
+    compatibility_status = "unknown"
+
+    # Runtime identity is independent of whether stdout exists. A crash that
+    # produces no source trace must still retain the framework version used.
+    if adapter == "opencode_jsonl":
+        framework = "opencode"
+        adapter_version = OPENCODE_ADAPTER_VERSION
+        if framework_version in OPENCODE_VALIDATED_VERSIONS:
+            compatibility_status = "validated_fixture"
+        elif framework_version:
+            compatibility_status = "unvalidated"
+            limitations.append(
+                "OpenCode framework version has no checked-in real CLI trace fixture: "
+                f"{framework_version}"
+            )
 
     if adapter == "none":
         status = "disabled"
@@ -51,7 +72,6 @@ def normalize_trace(
         status = "empty"
         unavailable = "empty"
     elif adapter == "opencode_jsonl":
-        adapter_version = OPENCODE_ADAPTER_VERSION
         result = parse_opencode_jsonl(
             source,
             repo_root=Path(repo_root),
@@ -63,6 +83,8 @@ def normalize_trace(
         else:
             unavailable = None
             status = "partial" if result.invalid_lines else "ok"
+            if compatibility_status == "unvalidated":
+                status = "partial"
     else:
         status = "unsupported"
         unavailable = "unsupported"
@@ -91,6 +113,9 @@ def normalize_trace(
     manifest = TraceManifest(
         adapter=adapter,
         adapter_version=adapter_version,
+        framework=framework,
+        framework_version=framework_version,
+        compatibility_status=compatibility_status,
         status=status,
         source_file=source.name if source is not None else None,
         source_sha256=sha256_file(source) if source is not None and source.is_file() else None,

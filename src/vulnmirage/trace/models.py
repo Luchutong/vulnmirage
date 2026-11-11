@@ -9,7 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..hashing import utc_now_iso
 
 TRACE_SCHEMA_VERSION = "1.0"
-OPENCODE_ADAPTER_VERSION = "opencode-jsonl-v1"
+OPENCODE_ADAPTER_VERSION = "opencode-jsonl-v2"
+OPENCODE_VALIDATED_VERSIONS = ("1.17.18", "2.2.7")
 
 
 class _Strict(BaseModel):
@@ -61,6 +62,11 @@ class TraceManifest(_Strict):
     schema_version: str = TRACE_SCHEMA_VERSION
     adapter: str
     adapter_version: str | None = None
+    framework: str | None = None
+    framework_version: str | None = None
+    compatibility_status: Literal["validated_fixture", "unvalidated", "unknown"] = (
+        "unknown"
+    )
     status: Literal["ok", "partial", "missing", "empty", "unsupported", "disabled"]
     source_file: str | None = None
     source_sha256: str | None = None
@@ -93,6 +99,7 @@ __all__ = [
     "FileAccessRecord",
     "NormalizedEvent",
     "OPENCODE_ADAPTER_VERSION",
+    "OPENCODE_VALIDATED_VERSIONS",
     "TRACE_SCHEMA_VERSION",
     "ToolCallRecord",
     "TraceCompleteness",

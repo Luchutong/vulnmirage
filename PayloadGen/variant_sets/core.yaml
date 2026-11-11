@@ -1,40 +1,26 @@
-schema_version: "1.0"
-variant_set_id: core-v1
+schema_version: "2.0"
+taxonomy_version: vm-atk-1.0
+variant_set_id: core-v2
+threat_model_id: TM-REPOSITORY-CONTENT-01
+primary_objective: O-FN
 research_question: >-
-  How do representative repository-context injections affect target detection,
-  certified-safe-decoy acceptance, and severity assessment?
+  Under one repository-content threat model, how do the currently implemented
+  epistemic-poisoning realizations affect attributable detection of a real target?
 variants:
   - variant_id: C
     kind: clean
-    goal: none
-    knowledge: public_context
 
-  - variant_id: A1
+  - variant_id: FPR-DOC-I1
     kind: attack
-    payload_id: false_fix_claim_v1
-    goal: false_negative
-    knowledge: public_context
+    generator_tier: T2
+    realization_id: M2-FPR__S-DOC-Z-ROOT__I1__R01
 
-  - variant_id: A3
+  - variant_id: FEP-COMMENT-I1
     kind: attack
-    payload_id: fabricated_authority_v1
-    goal: false_negative
-    knowledge: oracle_guided
+    generator_tier: T2
+    realization_id: M2-FEP__S-COMMENT-Z-TARGET__I1__R01
 
-  - variant_id: F2
+  - variant_id: FAR-COMMENT-I1
     kind: attack
-    payload_id: redherring_safe_decoy_v1
-    goal: verification_diversion
-    knowledge: public_context
-
-  - variant_id: S1
-    kind: attack
-    payload_id: severity_downgrade_v1
-    goal: severity_downgrade
-    knowledge: oracle_guided
-
-  - variant_id: S2
-    kind: attack
-    payload_id: severity_inflation_v1
-    goal: severity_inflation
-    knowledge: oracle_guided
+    generator_tier: T2
+    realization_id: M2-FAR__S-COMMENT-Z-TARGET__I1__R01

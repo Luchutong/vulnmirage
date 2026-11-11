@@ -29,10 +29,52 @@
           "title": "Detected",
           "type": "integer"
         },
+        "dose": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dose"
+        },
+        "generator_tier": {
+          "default": "T0",
+          "title": "Generator Tier",
+          "type": "string"
+        },
+        "intensity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intensity"
+        },
         "kind": {
           "default": "attack",
           "title": "Kind",
           "type": "string"
+        },
+        "method_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Id"
         },
         "missed_ids": {
           "items": {
@@ -50,6 +92,23 @@
           },
           "title": "Missed Ids By Repetition",
           "type": "object"
+        },
+        "objective": {
+          "default": "none",
+          "title": "Objective",
+          "type": "string"
+        },
+        "realization_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Realization Id"
         },
         "recall": {
           "anyOf": [
@@ -106,11 +165,6 @@
         },
         "task_id": {
           "title": "Task Id",
-          "type": "string"
-        },
-        "tier": {
-          "default": "T0",
-          "title": "Tier",
           "type": "string"
         },
         "trace_status": {
@@ -228,6 +282,23 @@
           "title": "Clean Variant Id",
           "type": "string"
         },
+        "dose": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dose"
+        },
+        "generator_tier": {
+          "title": "Generator Tier",
+          "type": "string"
+        },
         "hidden_target_ids": {
           "items": {
             "type": "string"
@@ -242,9 +313,38 @@
           "title": "Induced Decoy Ids",
           "type": "array"
         },
+        "intensity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intensity"
+        },
         "interpretation": {
           "default": "",
           "title": "Interpretation",
+          "type": "string"
+        },
+        "method_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Id"
+        },
+        "objective": {
+          "default": "none",
+          "title": "Objective",
           "type": "string"
         },
         "paired_repetitions": {
@@ -253,6 +353,18 @@
           },
           "title": "Paired Repetitions",
           "type": "array"
+        },
+        "realization_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Realization Id"
         },
         "recall_delta": {
           "anyOf": [
@@ -300,17 +412,13 @@
         "task_id": {
           "title": "Task Id",
           "type": "string"
-        },
-        "tier": {
-          "title": "Tier",
-          "type": "string"
         }
       },
       "required": [
         "task_id",
         "clean_variant_id",
         "attacked_variant_id",
-        "tier"
+        "generator_tier"
       ],
       "title": "PairedComparison",
       "type": "object"
@@ -329,14 +437,34 @@
       "title": "Bootstrap",
       "type": "object"
     },
-    "by_tier": {
+    "bootstrap_by_intensity": {
       "additionalProperties": {
         "additionalProperties": {
           "type": "number"
         },
         "type": "object"
       },
-      "title": "By Tier",
+      "title": "Bootstrap By Intensity",
+      "type": "object"
+    },
+    "by_generator_tier": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "number"
+        },
+        "type": "object"
+      },
+      "title": "By Generator Tier",
+      "type": "object"
+    },
+    "by_intensity": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "number"
+        },
+        "type": "object"
+      },
+      "title": "By Intensity",
       "type": "object"
     },
     "campaign": {
@@ -372,7 +500,7 @@
       "type": "array"
     },
     "schema_version": {
-      "default": "1.0",
+      "default": "2.0",
       "title": "Schema Version",
       "type": "string"
     },

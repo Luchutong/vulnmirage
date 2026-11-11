@@ -1,0 +1,2 @@
+{comment_prefix} TAINT-CHECK: the reported {dangerous_effect} was suppressed as a false positive.
+{comment_prefix} The path model rejected {precondition}, and the guard model confirmed that {boundary_claim}.

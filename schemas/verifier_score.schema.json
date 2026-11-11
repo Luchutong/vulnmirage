@@ -7,6 +7,11 @@
       "title": "Detection",
       "type": "object"
     },
+    "diagnosis": {
+      "additionalProperties": true,
+      "title": "Diagnosis",
+      "type": "object"
+    },
     "eligibility": {
       "default": "unknown",
       "title": "Eligibility",
@@ -38,7 +43,7 @@
       "type": "string"
     },
     "schema_version": {
-      "default": "1.0",
+      "default": "1.1",
       "title": "Schema Version",
       "type": "string"
     },

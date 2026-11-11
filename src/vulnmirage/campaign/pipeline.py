@@ -179,24 +179,40 @@ class RunRecord(BaseModel):
     variant_id: str
     target_ref: str | None = None
     variant_kind: str
+    taxonomy_version: str | None = None
+    threat_model_id: str | None = None
+    objective: str | None = None
     method_id: str | None = None
+    primary_mechanism: str | None = None
+    surface: dict[str, str] | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
+    realization_id: str | None = None
     carrier: str | None = None
-    goal: str | None = None
     repetition: int = 1
     executed_at: str = Field(default_factory=utc_now_iso)
     execution_status: str = "not_run"
     exit_code: int | None = None
     duration_seconds: float | None = None
-    tier: str | None = None
+    generator_tier: str | None = None
     model: str | None = None
     agent_profile: str | None = None
     agent_config_sha256: str | None = None
     agent_external_file_sha256: dict[str, str] = Field(default_factory=dict)
+    framework_version: str | None = None
     isolation_eligibility: str = "unattested"
     exposure_root: str | None = None
     trace_status: str = "missing"
     trace_completeness: str = "missing"
     trace_events: int = 0
+
+    @property
+    def tier(self) -> str | None:
+        return self.generator_tier
+
+    @property
+    def goal(self) -> str | None:
+        return self.objective
 
 
 class ArtifactEntry(BaseModel):
@@ -226,6 +242,7 @@ class CampaignRunner:
         agent_env_overrides: dict[str, str] | None = None,
         agent_config_sha256: str | None = None,
         agent_external_file_sha256: dict[str, str] | None = None,
+        framework_version: str | None = None,
     ) -> None:
         self.loaded = loaded
         self.config = loaded.config
@@ -241,6 +258,7 @@ class CampaignRunner:
         self.agent_env_overrides = dict(agent_env_overrides or {})
         self.agent_config_sha256 = agent_config_sha256
         self.agent_external_file_sha256 = dict(agent_external_file_sha256 or {})
+        self.framework_version = framework_version
         self.core: DatasetCore | None = None
         self._plan: PlanDoc | None = None
 
@@ -347,6 +365,9 @@ class CampaignRunner:
             "variant_set_file": doc.variant_set_file,
             "variant_set_sha256": doc.variant_set_sha256,
             "research_question": doc.research_question,
+            "taxonomy_version": doc.taxonomy_version,
+            "threat_model_id": doc.threat_model_id,
+            "primary_objective": doc.primary_objective,
             "variant_count": len(doc.tasks[0].variants) if doc.tasks else 0,
             "audits_per_task": doc.budget.audits_per_task,
             "generation": doc.generation.model_dump(mode="json"),
@@ -410,8 +431,14 @@ class CampaignRunner:
                 {
                     "variant_id": manifest.variant_id,
                     "condition_id": manifest.condition_id,
-                    "tier": manifest.tier,
+                    "generator_tier": manifest.generator_tier,
+                    "objective": manifest.objective,
                     "method_id": manifest.method_id,
+                    "primary_mechanism": manifest.primary_mechanism,
+                    "surface": manifest.surface,
+                    "intensity": manifest.intensity,
+                    "dose": manifest.dose,
+                    "realization_id": manifest.realization_id,
                     "candidate_budget": manifest.candidate_budget,
                     "selected": manifest.selection.selected_id,
                     "selection": manifest.selection.model_dump(mode="json"),
@@ -450,8 +477,10 @@ class CampaignRunner:
             "path": path.as_posix(),
             "tasks": result.tasks,
             "pairs": len(result.pairs),
-            "by_tier": result.by_tier,
+            "by_generator_tier": result.by_generator_tier,
+            "by_intensity": result.by_intensity,
             "bootstrap": result.bootstrap,
+            "bootstrap_by_intensity": result.bootstrap_by_intensity,
             "losses": result.losses.model_dump(mode="json"),
         }
 
@@ -756,6 +785,7 @@ class CampaignRunner:
         )
 
     def _build_private_targets(self, task_id: str):
+        from ..verifier.rubrics import build_target_rubric
         from ..verifier.targets import PrivateTarget, TargetSet
 
         core = self.core_index()
@@ -770,6 +800,7 @@ class CampaignRunner:
             str(row["target_id"]): str(row["anchor_status"]) for row in selection.get("rows", [])
         }
         targets: list[PrivateTarget] = []
+        rubrics = []
         excluded: list[dict[str, str]] = []
         for target in core.targets(task_id):
             level = eligibility_level(target)
@@ -792,22 +823,22 @@ class CampaignRunner:
                     }
                 )
                 continue
-            targets.append(
-                PrivateTarget(
-                    target_id=target.target_id,
-                    file=target.location.file,
-                    function=target.location.function,
-                    line_start=target.location.line_start,
-                    line_end=target.location.line_end,
-                    cwe_ids=list(target.weakness.cwe_ids),
-                    severity_level=target.severity.level,
-                    severity_score=target.severity.score,
-                    severity_convention=target.severity.convention,
-                    eligibility=level,
-                    entry_file=(target.entry_point or {}).get("file"),
-                    entry_function=(target.entry_point or {}).get("function"),
-                )
+            private_target = PrivateTarget(
+                target_id=target.target_id,
+                file=target.location.file,
+                function=target.location.function,
+                line_start=target.location.line_start,
+                line_end=target.location.line_end,
+                cwe_ids=list(target.weakness.cwe_ids),
+                severity_level=target.severity.level,
+                severity_score=target.severity.score,
+                severity_convention=target.severity.convention,
+                eligibility=level,
+                entry_file=(target.entry_point or {}).get("file"),
+                entry_function=(target.entry_point or {}).get("function"),
             )
+            targets.append(private_target)
+            rubrics.append(build_target_rubric(target, private_target))
         if not targets:
             raise CampaignError(
                 "no target survived snapshot verification: nothing can be scored",
@@ -818,6 +849,7 @@ class CampaignRunner:
                 task_id=task.task_id,
                 snapshot_id=task.snapshot_id,
                 targets=targets,
+                rubrics=rubrics,
                 source=f"dataset-core:{self.dataset_root.name}",
             ),
             excluded,
@@ -932,7 +964,7 @@ class CampaignRunner:
                     {
                         "variant_id": spec.variant_id,
                         "target_ref": variant.target_ref,
-                        "tier": str(spec.tier),
+                        "generator_tier": str(spec.generator_tier),
                         "generation": "not_generated",
                         "reason": "clean baseline or inline edits",
                     }
@@ -1012,10 +1044,17 @@ class CampaignRunner:
                 snapshot_id=task.snapshot_id,
                 variant_id=spec.variant_id,
                 condition_id=variant.condition_id or spec.variant_id,
-                method_id=method.method_id or method.method_family,
+                taxonomy_version=plan.taxonomy_version,
+                threat_model_id=plan.threat_model_id,
+                realization_id=method.realization_id,
+                objective=method.objective,
+                method_id=method.method_id,
                 method_family=method.method_family,
-                tier=tier,  # type: ignore[arg-type]
-                goal=method.objective,
+                primary_mechanism=method.primary_mechanism,
+                surface=method.surface.model_dump(mode="json"),
+                intensity=method.intensity,
+                dose=method.dose.model_dump(mode="json"),
+                generator_tier=tier,  # type: ignore[arg-type]
                 seed=plan.generation.seed,
                 carrier=method.carrier,
                 placement=method.placement,
@@ -1061,8 +1100,16 @@ class CampaignRunner:
                 {
                     "variant_id": spec.variant_id,
                     "target_ref": variant.target_ref,
-                    "tier": tier,
-                    "method_id": method.method_id or method.method_family,
+                    "generator_tier": tier,
+                    "taxonomy_version": plan.taxonomy_version,
+                    "threat_model_id": plan.threat_model_id,
+                    "objective": method.objective,
+                    "method_id": method.method_id,
+                    "primary_mechanism": method.primary_mechanism,
+                    "surface": method.surface.model_dump(mode="json"),
+                    "intensity": method.intensity,
+                    "dose": method.dose.model_dump(mode="json"),
+                    "realization_id": method.realization_id,
                     "candidates": len(manifest.candidates),
                     "selected_candidate": manifest.selection.selected_id,
                     "manifest_sha256": sha256_text(manifest.model_dump_json()),
@@ -1099,6 +1146,7 @@ class CampaignRunner:
     ) -> TaskState:
         """Build one tree per condition from its frozen candidate, then remap targets."""
         from ..payloadgen import GenerationManifest, OracleAttackView
+        from ..verifier.rubrics import remap_rubric
         from ..verifier.targets import SafeDecoy, TargetSet
 
         layout = self.layout(state.task_id, "prep", "C", "clean")
@@ -1212,6 +1260,16 @@ class CampaignRunner:
                 atomic_write_json(manifests_dir / f"{spec.variant_id}.json", manifest)
                 build = build.model_copy(
                     update={
+                        "taxonomy_version": manifest.taxonomy_version,
+                        "threat_model_id": manifest.threat_model_id,
+                        "method_id": manifest.method_id,
+                        "primary_mechanism": manifest.primary_mechanism,
+                        "surface": manifest.surface,
+                        "intensity": manifest.intensity,
+                        "dose": manifest.dose,
+                        "realization_id": manifest.realization_id,
+                        "objective": manifest.objective,
+                        "generator_tier": str(manifest.generator_tier),
                         "remap_sha256": remap.remap_sha256,
                         "generation_manifest_sha256": sha256_text(
                             manifest.model_dump_json()
@@ -1268,6 +1326,19 @@ class CampaignRunner:
                 )
 
             remapped = remap.as_targets([selected_target])
+            base_rubric = next(
+                (
+                    item
+                    for item in base_targets.rubrics
+                    if item.target_id == selected_target.target_id
+                ),
+                None,
+            )
+            remapped_rubrics = (
+                [remap_rubric(base_rubric, selected_target, remapped[0])]
+                if base_rubric is not None
+                else []
+            )
             guided_ids: set[str] = set()
             view_path = (
                 self.private_root
@@ -1298,6 +1369,7 @@ class CampaignRunner:
                         )
                         for item in remapped
                     ],
+                    "rubrics": remapped_rubrics,
                     "safe_decoys": decoys,
                 }
             )
@@ -1313,12 +1385,17 @@ class CampaignRunner:
                     "target_ref": variant.target_ref,
                     "base_variant_id": base_variant_id,
                     "kind": spec.kind,
-                    "tier": str(spec.tier),
-                    "payload_id": spec.payload_id,
+                    "taxonomy_version": build.taxonomy_version,
+                    "threat_model_id": build.threat_model_id,
+                    "objective": build.objective,
                     "method_id": effective_spec.method_id,
+                    "primary_mechanism": build.primary_mechanism,
+                    "surface": build.surface,
+                    "intensity": build.intensity,
+                    "dose": build.dose,
+                    "realization_id": build.realization_id,
+                    "generator_tier": build.generator_tier,
                     "carrier": effective_spec.carrier,
-                    "goal": effective_spec.goal,
-                    "knowledge": spec.knowledge,
                     "generation": (
                         {
                             "manifest_sha256": build.generation_manifest_sha256,
@@ -1459,7 +1536,12 @@ class CampaignRunner:
                             "actual": actual,
                         },
                     )
-                egress = probe_egress(self.config.isolation.egress)
+                runtime_probe = getattr(self.executor, "probe_egress", None)
+                egress = (
+                    runtime_probe(self.config.isolation.egress, run_dir=run_dir)
+                    if callable(runtime_probe)
+                    else probe_egress(self.config.isolation.egress)
+                )
                 env, env_record = build_restricted_agent_environment(
                     self.config.isolation.egress,
                     allowlist=self.agent_env_allowlist,
@@ -1468,6 +1550,18 @@ class CampaignRunner:
                 )
                 env["VULNMIRAGE_TASK_FILE"] = task_file.as_posix()
                 env["VULNMIRAGE_OUTPUT_DIR"] = layout.output_dir.as_posix()
+                # OpenCode/session caches are per run. This prevents a previous
+                # audit, user config or provider state from entering the context.
+                state_roots = {
+                    "HOME": layout.state_dir / "home",
+                    "XDG_CONFIG_HOME": layout.state_dir / "xdg-config",
+                    "XDG_DATA_HOME": layout.state_dir / "xdg-data",
+                    "XDG_CACHE_HOME": layout.state_dir / "xdg-cache",
+                    "XDG_STATE_HOME": layout.state_dir / "xdg-state",
+                }
+                for name, path in state_roots.items():
+                    env[name] = path.as_posix()
+                env_record["runtime_state_env_names"] = sorted(state_roots)
                 attestation = run_attestation(
                     layout,
                     expected_tree_sha256=build.tree_sha256,
@@ -1482,6 +1576,8 @@ class CampaignRunner:
 
                 result = ExecutionResult(status="not_run")
                 if attestation.verdict == "pass":
+                    for path in state_roots.values():
+                        path.mkdir(parents=True, exist_ok=True)
                     result = self.executor.run(
                         repo=layout.repo_dir,
                         output=layout.output_dir,
@@ -1500,6 +1596,7 @@ class CampaignRunner:
                     run_dir,
                     adapter=self.trace_adapter,
                     repo_root=layout.repo_dir,
+                    framework_version=self.framework_version,
                     secret_values=(env.get(name, "") for name in self.agent_env_names),
                 )
                 record = RunRecord(
@@ -1509,18 +1606,26 @@ class CampaignRunner:
                     variant_id=variant.variant_id,
                     target_ref=variant.target_ref,
                     variant_kind=variant.kind,
+                    taxonomy_version=variant.taxonomy_version,
+                    threat_model_id=variant.threat_model_id,
+                    objective=variant.objective,
                     method_id=variant.method_id,
+                    primary_mechanism=variant.primary_mechanism,
+                    surface=variant.surface,
+                    intensity=variant.intensity,
+                    dose=variant.dose,
+                    realization_id=variant.realization_id,
                     carrier=variant.carrier,
-                    goal=variant.goal,
                     repetition=repetition,
                     execution_status=result.status,
                     exit_code=result.exit_code,
                     duration_seconds=result.duration_seconds,
-                    tier=variant.tier,
+                    generator_tier=variant.generator_tier,
                     model=self.model_label,
                     agent_profile=self.agent_profile,
                     agent_config_sha256=self.agent_config_sha256,
                     agent_external_file_sha256=self.agent_external_file_sha256,
+                    framework_version=self.framework_version,
                     isolation_eligibility=attestation.eligibility,
                     exposure_root=layout.repo_dir.as_posix(),
                     trace_status=str(trace["status"]),
@@ -1537,7 +1642,16 @@ class CampaignRunner:
                         "variant_id": variant.variant_id,
                         "target_ref": variant.target_ref,
                         "condition_id": variant.condition_id or variant.variant_id,
-                        "tier": variant.tier,
+                        "taxonomy_version": variant.taxonomy_version,
+                        "threat_model_id": variant.threat_model_id,
+                        "objective": variant.objective,
+                        "method_id": variant.method_id,
+                        "primary_mechanism": variant.primary_mechanism,
+                        "surface": variant.surface,
+                        "intensity": variant.intensity,
+                        "dose": variant.dose,
+                        "realization_id": variant.realization_id,
+                        "generator_tier": variant.generator_tier,
                         "candidate_id": build.candidate_id,
                         "purpose": "evaluation",
                         "isolation_eligibility": attestation.eligibility,
@@ -1548,6 +1662,7 @@ class CampaignRunner:
                         "agent_profile": self.agent_profile,
                         "agent_config_sha256": self.agent_config_sha256,
                         "agent_external_file_sha256": self.agent_external_file_sha256,
+                        "framework_version": self.framework_version,
                     },
                 )
                 self._collect_answer(run_dir, layout)
@@ -1822,7 +1937,9 @@ class CampaignRunner:
                     target_ref=run_payload.get("target_ref"),
                     method_id=run_payload.get("method_id"),
                     carrier=run_payload.get("carrier"),
-                    goal=run_payload.get("goal"),
+                    objective=(
+                        run_payload.get("objective") or run_payload.get("goal")
+                    ),
                     payload_paths=payload_paths,
                     target_ids=tuple(item["target_id"] for item in run_targets),
                     target_files=tuple(target_files),

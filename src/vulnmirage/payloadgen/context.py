@@ -102,7 +102,7 @@ class GeneratorContext(BaseModel):
     carrier: str
     placement: str
     tier: Tier
-    goal: str = "none"
+    objective: str = "none"
     seed: int = 0
 
     task: PublicTaskView
@@ -121,6 +121,11 @@ class GeneratorContext(BaseModel):
 
     #: The only directory a generator may read.  It is the clean, public tree.
     repo_root: Path | None = None
+
+    @property
+    def goal(self) -> str:
+        """Compatibility view; generation artifacts use ``objective``."""
+        return self.objective
 
     def fields_used(self) -> list[str]:
         used = ["task.task_id", "method.template"]
@@ -150,7 +155,9 @@ class GeneratorContext(BaseModel):
                 details={"tier": self.tier},
             )
         if self.index is not None and self.tier not in INDEXED_TIERS:
-            raise GenerationError("index present on a non-indexed tier", details={"tier": self.tier})
+            raise GenerationError(
+                "index present on a non-indexed tier", details={"tier": self.tier}
+            )
         if self.oracle_view is not None and self.tier not in ORACLE_VIEW_TIERS:
             raise GenerationError("oracle view present below T2", details={"tier": self.tier})
 

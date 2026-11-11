@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from . import SCHEMA_VERSION
 from .errors import ConfigError
@@ -92,7 +92,7 @@ class EgressConfig(_Strict):
     pass the live probe: a declared policy is not evidence.
     """
 
-    mode: Literal["container", "proxy", "none"] = "none"
+    mode: Literal["linux_namespace", "container", "proxy", "none"] = "none"
     #: The single upstream the model calls may use.
     inference_gateway_hosts: list[str] = Field(default_factory=list)
     #: Hosts that must be unreachable because they serve the answer.
@@ -159,34 +159,67 @@ class VariantEditConfig(_Strict):
 class VariantSpecConfig(_Strict):
     variant_id: str
     kind: Literal["clean", "attack"] = "attack"
-    #: Capability tier of the generator that realizes this condition (design §3).
-    #: A tier the build does not implement fails at plan time instead of falling
-    #: back to a cheaper realization at run time.
-    tier: Tier = "T0"
-    #: Optional reference into ``campaign.payload_catalog``.  The referenced
-    #: payload is rendered during the trusted preparation phase; it is never
-    #: read from inside the agent workspace.
-    payload_id: str | None = None
-    #: Method identity is separate from the generation backend and the carrier.
+    #: Generator capability is provenance, not attack intensity. ``tier`` remains
+    #: a validation alias for old programmatic callers but is not serialized.
+    generator_tier: Tier = Field(
+        default="T0", validation_alias=AliasChoices("generator_tier", "tier")
+    )
+    #: Concrete realization from the canonical method registry. ``payload_id``
+    #: is accepted only as a migration alias for direct API callers.
+    realization_id: str | None = Field(
+        default=None, validation_alias=AliasChoices("realization_id", "payload_id")
+    )
+    #: Filled by the trusted catalog binding; variant-set authors do not invent it.
     method_id: str | None = None
     carrier: str | None = None
-    goal: Literal[
-        "false_negative",
-        "false_positive",
-        "severity_shift",
-        "severity_downgrade",
-        "severity_inflation",
-        "verification_diversion",
-        "evidence_weakening",
-        "scope_shift",
+    objective: Literal[
+        "O-FN",
+        "O-FP",
+        "O-SEV-D",
+        "O-SEV-I",
+        "O-EV",
+        "O-SCOPE",
+        "O-AVAIL",
         "none",
-    ] = "none"
-    #: Deprecated in favour of ``tier``: kept so older variant sets still load,
-    #: but the tier, not this label, decides what a generator may read.
-    knowledge: Literal["public_context", "target_known", "oracle_guided"] = "public_context"
+    ] = Field(default="none", validation_alias=AliasChoices("objective", "goal"))
     edits: list[VariantEditConfig] = Field(default_factory=list)
     #: Text that must never appear in the variant (answer-identifying tokens).
     forbidden_tokens: list[str] = Field(default_factory=list)
+
+    @field_validator("objective", mode="before")
+    @classmethod
+    def _canonical_objective(cls, value: object) -> object:
+        legacy = {
+            "false_negative": "O-FN",
+            "false_positive": "O-FP",
+            "severity_shift": "O-SEV-D",
+            "severity_downgrade": "O-SEV-D",
+            "severity_inflation": "O-SEV-I",
+            "verification_diversion": "O-SCOPE",
+            "evidence_weakening": "O-EV",
+            "scope_shift": "O-SCOPE",
+        }
+        return legacy.get(str(value), value)
+
+    @property
+    def tier(self) -> Tier:
+        """Compatibility view; new artifacts use ``generator_tier``."""
+        return self.generator_tier
+
+    @property
+    def payload_id(self) -> str | None:
+        """Compatibility view; new artifacts use ``realization_id``."""
+        return self.realization_id
+
+    @property
+    def goal(self) -> str:
+        """Compatibility view; new artifacts use canonical Objective IDs."""
+        return self.objective
+
+    @property
+    def knowledge(self) -> str:
+        """Legacy display label derived from generation provenance only."""
+        return "oracle_guided" if self.generator_tier in {"T2", "T3", "T4"} else "public_context"
 
 
 class TierProfileConfig(_Strict):
@@ -287,11 +320,13 @@ class AgentConfig(_Strict):
     * ``stdout`` -- the command prints; the harness captures stdout and extracts the
       last JSON object, or the last text part of a JSONL event stream.
 
-    ``argv`` must contain ``{repo}``.  ``{output}`` (directory), ``{task}`` (path to
-    the normalized task) and ``{prompt}`` (alias of ``{task}``) are optional.
+    The child process always starts with the exposed repository as its working
+    directory. ``{repo}``, ``{output}``, ``{task}`` and ``{prompt}`` remain
+    available when a framework needs explicit path arguments.
     """
 
     schema_version: str = SCHEMA_VERSION
+    runtime: Literal["subprocess", "linux_namespace"] = "subprocess"
     mode: Literal["argv", "stdout"] = "stdout"
     argv: list[str] = Field(default_factory=list)
     #: How the answer is located inside stdout when ``mode = stdout``.
@@ -300,6 +335,9 @@ class AgentConfig(_Strict):
     #: from answer extraction: an answer may be parseable even when its trace is
     #: partial, and vice versa.
     trace_adapter: Literal["none", "opencode_jsonl"] = "none"
+    #: Read-only command used before the campaign to freeze the exact framework
+    #: version into every run. It must not contact a model endpoint.
+    framework_version_command: list[str] = Field(default_factory=list)
     #: Framework-native configuration loaded by the child process.  The path is
     #: resolved relative to this YAML file, hashed into the effective agent
     #: identity, and forwarded through ``OPENCODE_CONFIG``.  It is never copied
@@ -448,8 +486,11 @@ def _reject_secret_keys(value: Any, path: str = "") -> None:
             key_text = str(key)
             if _SECRET_KEY_RE.search(key_text):
                 raise ConfigError(
-                    "credentials must not be stored in configuration files; use environment variables",
-                    details={"key_path": f"{path}.{key_text}" if path else key_text},
+                    "credentials must not be stored in configuration files; "
+                    "use environment variables",
+                    details={
+                        "key_path": f"{path}.{key_text}" if path else key_text
+                    },
                 )
             _reject_secret_keys(item, f"{path}.{key_text}" if path else key_text)
     elif isinstance(value, list):
@@ -590,11 +631,6 @@ def load_agent_config(path: str | Path, *, profile: str | None = None) -> Loaded
             f"invalid agent configuration: {exc}",
             details={"path": str(source), "profile": selected, "validation": str(exc)},
         ) from exc
-    if "{repo}" not in " ".join(agent.argv):
-        raise ConfigError(
-            "agent argv must contain a {repo} placeholder",
-            details={"path": str(source), "argv": agent.argv},
-        )
     child_env: dict[str, str] = {}
     external_hashes: dict[str, str] = {}
     if agent.framework_config_file:

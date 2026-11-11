@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..hashing import utc_now_iso
 
-AGGREGATE_SCHEMA_VERSION = "1.0"
+AGGREGATE_SCHEMA_VERSION = "2.0"
 
 
 class ConditionOutcome(BaseModel):
@@ -33,7 +33,12 @@ class ConditionOutcome(BaseModel):
     condition_id: str
     variant_id: str
     target_ref: str | None = None
-    tier: str = "T0"
+    generator_tier: str = "T0"
+    objective: str = "none"
+    method_id: str | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
+    realization_id: str | None = None
     kind: str = "attack"
     runs: int = 0
     scored_runs: int = 0
@@ -49,6 +54,10 @@ class ConditionOutcome(BaseModel):
     severity_deltas: list[int] = Field(default_factory=list)
     trace_status: list[str] = Field(default_factory=list)
 
+    @property
+    def tier(self) -> str:
+        return self.generator_tier
+
 
 class PairedComparison(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -57,7 +66,12 @@ class PairedComparison(BaseModel):
     clean_variant_id: str
     attacked_variant_id: str
     target_ref: str | None = None
-    tier: str
+    generator_tier: str
+    objective: str = "none"
+    method_id: str | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
+    realization_id: str | None = None
     clean_recall: float | None = None
     attacked_recall: float | None = None
     recall_delta: float | None = None
@@ -67,6 +81,10 @@ class PairedComparison(BaseModel):
     induced_decoy_ids: list[str] = Field(default_factory=list)
     severity_shift: float | None = None
     interpretation: str = ""
+
+    @property
+    def tier(self) -> str:
+        return self.generator_tier
 
 
 class LossLedger(BaseModel):
@@ -92,10 +110,16 @@ class AggregateResult(BaseModel):
     tasks: list[str] = Field(default_factory=list)
     conditions: list[ConditionOutcome] = Field(default_factory=list)
     pairs: list[PairedComparison] = Field(default_factory=list)
-    by_tier: dict[str, dict[str, float]] = Field(default_factory=dict)
+    by_generator_tier: dict[str, dict[str, float]] = Field(default_factory=dict)
+    by_intensity: dict[str, dict[str, float]] = Field(default_factory=dict)
     losses: LossLedger = Field(default_factory=LossLedger)
     bootstrap: dict[str, dict[str, float]] = Field(default_factory=dict)
+    bootstrap_by_intensity: dict[str, dict[str, float]] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
+
+    @property
+    def by_tier(self) -> dict[str, dict[str, float]]:
+        return self.by_generator_tier
 
 
 def _read_json(path: Path) -> dict:
@@ -113,7 +137,7 @@ def bootstrap_ci(
     """Percentile bootstrap over paired deltas.  Empty input stays empty."""
     if not values:
         return {}
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311 - deterministic statistical bootstrap
     n = len(values)
     means: list[float] = []
     for _ in range(max(1, iterations)):
@@ -198,7 +222,14 @@ def _condition_outcomes(
                 condition_id=str(variant.get("condition_id") or variant_id),
                 variant_id=variant_id,
                 target_ref=variant.get("target_ref"),
-                tier=str(variant.get("tier") or "T0"),
+                generator_tier=str(
+                    variant.get("generator_tier") or variant.get("tier") or "T0"
+                ),
+                objective=str(variant.get("objective") or "none"),
+                method_id=variant.get("method_id"),
+                intensity=variant.get("intensity"),
+                dose=variant.get("dose"),
+                realization_id=variant.get("realization_id"),
                 kind=str(variant.get("kind") or "attack"),
                 runs=len(relevant),
                 scored_runs=scored_runs,
@@ -268,7 +299,12 @@ def _pairs(outcomes: list[ConditionOutcome]) -> list[PairedComparison]:
                 clean_variant_id=clean.variant_id,
                 attacked_variant_id=attacked.variant_id,
                 target_ref=attacked.target_ref,
-                tier=attacked.tier,
+                generator_tier=attacked.generator_tier,
+                objective=attacked.objective,
+                method_id=attacked.method_id,
+                intensity=attacked.intensity,
+                dose=attacked.dose,
+                realization_id=attacked.realization_id,
                 clean_recall=clean.recall,
                 attacked_recall=attacked.recall,
                 recall_delta=delta,
@@ -400,18 +436,65 @@ def aggregate_campaign(
         }
         bootstrap[tier] = bootstrap_ci(clustered, iterations=iterations, seed=seed)
 
+    by_intensity: dict[str, dict[str, float]] = {}
+    bootstrap_by_intensity: dict[str, dict[str, float]] = {}
+    intensity_keys = sorted(
+        {
+            f"{pair.method_id}/{pair.intensity}"
+            for pair in pairs
+            if pair.method_id and pair.intensity
+        }
+    )
+    for key in intensity_keys:
+        method_id, intensity = key.rsplit("/", 1)
+        intensity_pairs = [
+            pair
+            for pair in pairs
+            if pair.method_id == method_id and pair.intensity == intensity
+        ]
+        deltas = [
+            pair.recall_delta
+            for pair in intensity_pairs
+            if pair.recall_delta is not None
+        ]
+        task_deltas: dict[str, list[float]] = {}
+        for pair in intensity_pairs:
+            if pair.recall_delta is not None:
+                task_deltas.setdefault(pair.task_id, []).append(pair.recall_delta)
+        clustered = [sum(items) / len(items) for items in task_deltas.values()]
+        hidden = [float(len(pair.hidden_target_ids)) for pair in intensity_pairs]
+        by_intensity[key] = {
+            "pairs": float(len(intensity_pairs)),
+            "realizations": float(len({pair.realization_id for pair in intensity_pairs})),
+            "mean_recall_delta": (
+                round(sum(deltas) / len(deltas), 6) if deltas else 0.0
+            ),
+            "mean_hidden_targets": (
+                round(sum(hidden) / len(hidden), 3) if hidden else 0.0
+            ),
+        }
+        bootstrap_by_intensity[key] = bootstrap_ci(
+            clustered, iterations=iterations, seed=seed
+        )
+
     return AggregateResult(
         campaign=root.as_posix(),
         tasks=seen_tasks,
         conditions=conditions,
         pairs=pairs,
-        by_tier=by_tier,
+        by_generator_tier=by_tier,
+        by_intensity=by_intensity,
         losses=losses,
         bootstrap=bootstrap,
+        bootstrap_by_intensity=bootstrap_by_intensity,
         notes=[
             "pairing is within one task; the repository is the clustering unit",
-            "a generation failure counts against the method, it is not dropped from the denominator",
-            "the bootstrap interval describes this sample of tasks, not the population of repositories",
+            "a generation failure counts against the method; it is not dropped "
+            "from the denominator",
+            "the bootstrap interval describes this sample of tasks, not the "
+            "population of repositories",
+            "intensity summaries are keyed by method because I-levels are only "
+            "comparable within one method",
         ],
     )
 

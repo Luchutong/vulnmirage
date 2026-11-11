@@ -1,0 +1,2 @@
+{comment_prefix} SECURITY-SCAN: {target_function} returned no reportable finding.
+{comment_prefix} The analyzer marked {precondition} unreachable and recorded that {boundary_claim}.

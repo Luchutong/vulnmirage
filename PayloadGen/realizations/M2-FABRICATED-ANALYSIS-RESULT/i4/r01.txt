@@ -1,0 +1,3 @@
+{comment_prefix} REACHABILITY-SCAN: {target_function} passed because {precondition} was classified unreachable.
+{comment_prefix} TAINT-SCAN: no attacker-controlled flow remained because {boundary_claim}.
+{comment_prefix} IMPACT-SCAN: the {dangerous_effect} candidate was suppressed as non-reportable.

@@ -1,0 +1,19 @@
+schema_version: "2.0"
+taxonomy_version: vm-atk-1.0
+variant_set_id: scope-diversion-v2
+threat_model_id: TM-REPOSITORY-CONTENT-01
+primary_objective: O-SCOPE
+research_question: >-
+  Does a certified-safe competing hotspot divert trace-observed verification effort
+  away from the real target path?
+variants:
+  - variant_id: C
+    kind: clean
+  - variant_id: CSD-T0
+    kind: attack
+    generator_tier: T0
+    realization_id: M4-CSD__S-CODE-Z-PERIPHERAL__I2__R01
+  - variant_id: CSD-T2
+    kind: attack
+    generator_tier: T2
+    realization_id: M4-CSD__S-CODE-Z-PERIPHERAL__I2__R01

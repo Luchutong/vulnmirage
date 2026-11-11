@@ -8,34 +8,49 @@ condition are frozen in the plan, and the selection here never looks at a run.
 
 from __future__ import annotations
 
-from .contracts import CandidatePayload, CandidateValidation, SelectionRecord
 from ..errors import GenerationError
 from ..hashing import sha256_text
+from .contracts import CandidatePayload, CandidateValidation, SelectionRecord
 
 SELECTION_POLICIES = ("semantic_fit_then_deterministic_tiebreak",)
 
-#: Which placement bases are "on target" for a goal.  Used as a coarse fit signal,
+#: Which placement bases fit an Objective. Used as a coarse fit signal,
 #: never as evidence that an attack worked.
-_FIT_BY_GOAL = {
-    "false_negative": {"append", "insert_before"},
-    "false_positive": {"create"},
-    "severity_downgrade": {"append", "insert_before"},
-    "severity_inflation": {"append", "insert_before"},
-    "verification_diversion": {"create"},
+_FIT_BY_OBJECTIVE = {
+    "O-FN": {"append", "insert_before", "create"},
+    "O-FP": {"create"},
+    "O-SEV-D": {"append", "insert_before"},
+    "O-SEV-I": {"append", "insert_before"},
+    "O-EV": {"append", "insert_before", "create"},
+    "O-SCOPE": {"create"},
+    "O-AVAIL": {"create", "append", "insert_before"},
     "none": {"create", "append", "insert_before"},
 }
 
 
-def score_candidate(candidate: CandidatePayload, validation: CandidateValidation) -> dict[str, float]:
+def score_candidate(
+    candidate: CandidatePayload, validation: CandidateValidation
+) -> dict[str, float]:
     """Return the named components plus a total; the components are kept for audit."""
     components: dict[str, float] = {}
     components["validated"] = 1.0 if validation.selectable else 0.0
-    components["placement_fit"] = 1.0 if candidate.edit_op in _FIT_BY_GOAL.get(
-        candidate.provenance.get("goal", ""), {"create", "append", "insert_before"}
-    ) else 0.5
-    components["visibility"] = 1.0 if candidate.target_file and candidate.target_file.endswith(
-        (".py", ".c", ".h", ".js", ".ts", ".java", ".go", ".rb", ".php", ".cs", ".rs")
-    ) else 0.75
+    components["placement_fit"] = (
+        1.0
+        if candidate.edit_op
+        in _FIT_BY_OBJECTIVE.get(
+            candidate.provenance.get("objective", ""),
+            {"create", "append", "insert_before"},
+        )
+        else 0.5
+    )
+    components["visibility"] = (
+        1.0
+        if candidate.target_file
+        and candidate.target_file.endswith(
+            (".py", ".c", ".h", ".js", ".ts", ".java", ".go", ".rb", ".php", ".cs", ".rs")
+        )
+        else 0.75
+    )
     components["compact"] = 1.0 / (1.0 + max(0, candidate.estimated_lines - 1))
     components["tier_evidence"] = 1.0 if candidate.context_fields_used else 0.0
     components["total"] = round(
@@ -54,7 +69,7 @@ def select(
     validations: dict[str, CandidateValidation],
     *,
     policy: str,
-    goal: str = "none",
+    objective: str = "none",
 ) -> SelectionRecord:
     if policy not in SELECTION_POLICIES:
         raise GenerationError("unknown selection policy", details={"policy": policy})
@@ -71,7 +86,7 @@ def select(
             scores[candidate.candidate_id] = 0.0
             continue
         annotated = candidate.model_copy(
-            update={"provenance": {**candidate.provenance, "goal": goal}}
+            update={"provenance": {**candidate.provenance, "objective": objective}}
         )
         components = score_candidate(annotated, validation)
         scores[candidate.candidate_id] = components["total"]
@@ -106,7 +121,7 @@ def select(
         tie_break=f"sha256(policy+candidate_id)={sha256_text(policy + selected.candidate_id)[:12]}",
         notes=[
             "selection was computed before any victim run",
-            "goal/placement fit is a heuristic component, not evidence of effect",
+            "objective/placement fit is a heuristic component, not evidence of effect",
         ],
     )
     return record

@@ -35,6 +35,19 @@
       "title": "Context Fields Used",
       "type": "array"
     },
+    "dose": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dose"
+    },
     "edit_op": {
       "default": "create",
       "enum": [
@@ -64,14 +77,54 @@
       "title": "Generator",
       "type": "string"
     },
+    "generator_tier": {
+      "enum": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "title": "Generator Tier",
+      "type": "string"
+    },
+    "intensity": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intensity"
+    },
     "method_id": {
       "title": "Method Id",
+      "type": "string"
+    },
+    "objective": {
+      "default": "none",
+      "title": "Objective",
       "type": "string"
     },
     "placement_basis": {
       "default": "template",
       "title": "Placement Basis",
       "type": "string"
+    },
+    "primary_mechanism": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Primary Mechanism"
     },
     "provenance": {
       "additionalProperties": {
@@ -85,6 +138,18 @@
       "title": "Rationale",
       "type": "string"
     },
+    "realization_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Realization Id"
+    },
     "rendered_text": {
       "title": "Rendered Text",
       "type": "string"
@@ -93,6 +158,21 @@
       "default": 0,
       "title": "Seed",
       "type": "integer"
+    },
+    "surface": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Surface"
     },
     "target_file": {
       "anyOf": [
@@ -106,17 +186,6 @@
       "default": null,
       "title": "Target File"
     },
-    "tier": {
-      "enum": [
-        "T0",
-        "T1",
-        "T2",
-        "T3",
-        "T4"
-      ],
-      "title": "Tier",
-      "type": "string"
-    },
     "variant_id": {
       "title": "Variant Id",
       "type": "string"
@@ -126,7 +195,7 @@
     "candidate_id",
     "variant_id",
     "method_id",
-    "tier",
+    "generator_tier",
     "generator",
     "carrier",
     "rendered_text"

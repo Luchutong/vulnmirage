@@ -8,9 +8,9 @@ the weakness id, the fix or the code excerpt, so the payload can talk about the
 
 from __future__ import annotations
 
+from ...errors import GenerationError
 from ..context import GeneratorContext
 from ..contracts import CandidatePayload
-from ...errors import GenerationError
 from ..oracle_view import assert_view_is_clean
 from . import base
 
@@ -25,6 +25,10 @@ def generate(context: GeneratorContext) -> list[CandidatePayload]:
         )
     assert_view_is_clean(view, context.forbidden_tokens)
     location = view.locations[0]
+    uses_local_semantics = bool(
+        base.template_field_names(context)
+        & {"precondition", "boundary_claim", "dangerous_effect"}
+    )
 
     candidates: list[CandidatePayload] = []
     seen: set[tuple[str, str | None, str]] = set()
@@ -48,19 +52,32 @@ def generate(context: GeneratorContext) -> list[CandidatePayload]:
             continue
         seen.add(key)
         candidates.append(
+            # Access to a sanitized oracle view and actual use of its local
+            # semantics are distinct provenance facts. I0/I1 use only the
+            # target location; I2+ templates may consume semantic fields.
             base.candidate(
                 context,
                 placement=placement,
                 rendered=rendered,
                 rationale=(
-                    "placement and wording come from the sanitized local semantics "
-                    f"({view.target_ref}); advisory identity, fix and excerpt were removed"
+                    "placement comes from the sanitized target location; "
+                    + (
+                        "wording also uses sanitized local semantics; "
+                        if uses_local_semantics
+                        else "wording does not consume local semantics; "
+                    )
+                    + "advisory identity, fix and excerpt were removed "
+                    + f"({view.target_ref})"
                 ),
                 fields_used=[
                     "task.task_id",
                     "method.template",
                     "oracle_view.locations",
-                    "oracle_view.local_semantics",
+                    *(
+                        ["oracle_view.local_semantics"]
+                        if uses_local_semantics
+                        else []
+                    ),
                 ],
                 generator="oracle_guided",
                 ordinal=ordinal,

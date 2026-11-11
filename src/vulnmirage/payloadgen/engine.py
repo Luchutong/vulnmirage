@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from ..errors import CampaignError, UnsupportedTierError
 from ..tiers import Tier, is_implemented
@@ -23,8 +23,6 @@ from .contracts import (
     CandidatePayload,
     CandidateValidation,
     GenerationManifest,
-    SelectionRecord,
-    ValidatorResult,
 )
 from .generators import GENERATOR_BY_NAME, GENERATOR_BY_TIER
 from .oracle_view import OracleAttackView
@@ -47,8 +45,17 @@ class GenerationRequest(BaseModel):
     condition_id: str
     method_id: str
     method_family: str = ""
-    tier: Tier = "T0"
-    goal: str = "none"
+    taxonomy_version: str | None = None
+    threat_model_id: str | None = None
+    realization_id: str | None = None
+    objective: str = Field(default="none", validation_alias=AliasChoices("objective", "goal"))
+    primary_mechanism: str | None = None
+    surface: dict[str, str] | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
+    generator_tier: Tier = Field(
+        default="T0", validation_alias=AliasChoices("generator_tier", "tier")
+    )
     seed: int = 0
     carrier: str = "unknown"
     placement: str = "create_file"
@@ -71,6 +78,14 @@ class GenerationRequest(BaseModel):
     input_hashes: dict[str, str] = Field(default_factory=dict)
     repo_root: Path | None = None
 
+    @property
+    def tier(self) -> Tier:
+        return self.generator_tier
+
+    @property
+    def goal(self) -> str:
+        return self.objective
+
 
 def build_context(request: GenerationRequest) -> GeneratorContext:
     if not is_implemented(request.tier):
@@ -83,11 +98,10 @@ def build_context(request: GenerationRequest) -> GeneratorContext:
         condition_id=request.condition_id,
         method_id=request.method_id,
         method_family=request.method_family,
-        objective=request.goal,
+        objective=request.objective,
         carrier=request.carrier,
         placement=request.placement,
         tier=request.tier,
-        goal=request.goal,
         seed=request.seed,
         task=request.task,
         templates=request.templates,
@@ -160,7 +174,21 @@ def generate_manifest(
 ) -> GenerationManifest:
     context = build_context(request)
     module = _generator_for(request, method)
-    candidates = _dedupe(module.generate(context))[: request.budget.candidates]
+    generated = module.generate(context)
+    candidates = [
+        item.model_copy(
+            update={
+                "realization_id": request.realization_id,
+                "objective": request.objective,
+                "primary_mechanism": request.primary_mechanism,
+                "surface": request.surface,
+                "intensity": request.intensity,
+                "dose": request.dose,
+            }
+        )
+        for item in generated
+    ]
+    candidates = _dedupe(candidates)[: request.budget.candidates]
     if not candidates:
         raise CampaignError(
             "the generator produced no candidate",
@@ -180,15 +208,23 @@ def generate_manifest(
         candidates,
         by_id,
         policy=request.selection_policy,
-        goal=request.goal,
+        objective=request.objective,
     )
     manifest = GenerationManifest(
         task_id=request.task_id,
         snapshot_id=request.snapshot_id,
         variant_id=request.variant_id,
         condition_id=request.condition_id,
+        taxonomy_version=request.taxonomy_version,
+        threat_model_id=request.threat_model_id,
+        objective=request.objective,
         method_id=request.method_id,
-        tier=request.tier,
+        primary_mechanism=request.primary_mechanism,
+        surface=request.surface,
+        intensity=request.intensity,
+        dose=request.dose,
+        realization_id=request.realization_id,
+        generator_tier=request.generator_tier,
         seed=request.seed,
         generator_version=GENERATOR_VERSION,
         clean_tree_sha256=request.clean_tree_sha256,
@@ -229,9 +265,13 @@ def candidate_to_edit(candidate: CandidatePayload):
             details={"candidate_id": candidate.candidate_id},
         )
     if candidate.edit_op == "create":
-        return VariantEditConfig(op="create", path=candidate.target_file, text=candidate.rendered_text)
+        return VariantEditConfig(
+            op="create", path=candidate.target_file, text=candidate.rendered_text
+        )
     if candidate.edit_op == "append":
-        return VariantEditConfig(op="append", path=candidate.target_file, text=candidate.rendered_text)
+        return VariantEditConfig(
+            op="append", path=candidate.target_file, text=candidate.rendered_text
+        )
     if candidate.edit_op == "insert_before":
         if not candidate.anchor:
             raise CampaignError(

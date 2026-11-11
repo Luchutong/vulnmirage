@@ -1,72 +1,94 @@
 # PayloadGen
 
-This directory is the benchmark's trusted payload-method library. It is read while
-constructing variants and is never copied wholesale into an agent's audit workspace.
+`PayloadGen` is the trusted attack-construction library. It is read before an
+audit and is never copied wholesale into the Agent workspace.
+
+## Canonical identity
+
+An attacked condition freezes:
+
+```text
+ThreatModel reference × Objective × Method × Surface × Intensity × Realization
+```
+
+- `Objective` states which audit outcome should become wrong.
+- `Method` has one primary causal mechanism.
+- `Surface` combines the repository artifact and semantic zone.
+- `Intensity` is the method-specific `I0`–`I4` attack dose.
+- `Realization` is a concrete text or transformation.
+- T0–T4 are generator-context provenance, not taxonomy and not attack strength.
+
+See [`docs/payload_attack_taxonomy.md`](../docs/payload_attack_taxonomy.md) for the
+normative definitions.
 
 ## Files
 
-- `registry.v2.yaml` — the active method registry. Each method declares
-  `supported_tiers`, the `realizations` backend for every tier it claims, an optional
-  per-tier `templates` map, `placement_limits` and `validation` policy. A tier listed
-  without a realization fails at load time; a condition whose tier the method does not
-  support fails at plan time.
-- `registry.yaml` — the v1 registry, kept for compatibility. It has no tier metadata,
-  so it only supports T0 conditions.
-- `methods/<ID>/templates/` — tier-specific templates. `t1_repository.txt` speaks in
-  the repository's own terms; `t2_oracle.txt` may reference `{precondition}`,
-  `{boundary_claim}` and `{dangerous_effect}`, which come from the sanitized oracle
-  view and never from the advisory itself.
-- `variant_sets/` — pre-registered condition groups; every set contains its own clean
-  baseline `C`:
-  - `core.yaml` — the compact T0 baseline;
-  - `core_tier_ablation.yaml` — A2/A3/S1 over T0/T1/T2 plus F2 over T0/T2;
-  - `false_negative.yaml` — A1/A2/A3 over T0/T1/T2;
-  - `severity.yaml` — S1/S2 over T0/T1/T2;
-  - `safe_decoy.yaml` — F1/F2 over T0/T2.
-- `templates/` — the T0 templates. Generated text and template hashes are written to
-  each task's generation manifest and patch record.
+- `registry.yaml` — schema 3 registry containing method definitions and concrete
+  realizations. Loader checks objective, surface, intensity, generator backend and
+  threat-model consistency before generation.
+- `threat_models/repository_content.yaml` — repository-content attacker capability
+  and mutation budget. The registry references it by stable ID.
+- `methods/*/templates/` — generator-context-specific renderings. T1 uses public
+  repository structure; T2 may use the sanitized local oracle view.
+- `realizations/*/i0..i4/` — concrete intensity realizations for the three core M2
+  methods. A realization declares
+  an auditable dose: claim count, supporting-evidence count, directness and
+  reinforcement count.
+- `templates/*` — deterministic fallback templates.
+- `variant_sets/*` — pre-registered, single-objective experiment sets. Every set
+  contains the clean baseline `C`; no benign injected control is added.
 
-Formal T0 conditions keep this text fixed and use the public repository index only to
-choose a deterministic comment-capable source file (`static_public_index`). They do not
-receive a target location or sanitized oracle view. T1 adapts placement/content to the
-public index, prioritizing non-generated sink-shaped files and the task's primary
-language before a seeded deterministic tie-break; T2 may additionally consume the
-sanitized local oracle view.
+## Variant-set rules
 
-## Status vocabulary
+Variant-set schema 2 requires `taxonomy_version`, `threat_model_id` and one
+`primary_objective`. An attack row names only a `realization_id` and
+`generator_tier`; method, mechanism, surface and intensity are resolved from the
+registry and frozen into `plan.json`, generation manifests, patch metadata and run
+records. A contradictory objective or method is rejected before repository download
+or model execution.
 
-`implemented_adaptation` means the mechanism is inspired by or adapted from the cited
-work; it does **not** claim paper-faithful reproduction. `planned` means the method has
-no generator: campaign planning rejects it, and no run-time fallback exists.
+Current sets are:
 
-## Template variables
+- `core.yaml` — implemented `O-FN` core;
+- `generator_context_ablation.yaml` — generator context with taxonomy identity fixed;
+- `intensity_false_prior_resolution.yaml` — fixed-T2 `M2.1` intensity ablation;
+- `intensity_false_exploitability.yaml` — fixed-T2 `M2.5` intensity ablation with
+  two independent realizations at each of I0–I4;
+- `intensity_fabricated_analysis.yaml` — fixed-T2 `M2.2` intensity ablation;
+- `false_negative.yaml` — target suppression;
+- `safe_decoy.yaml` — certified false-finding induction;
+- `scope_diversion.yaml` — certified-safe attention diversion;
+- `severity.yaml` — severity downgrade;
+- `severity_inflation.yaml` — severity inflation.
 
-Templates may use `{comment_prefix}`, `{target_file}`, `{target_function}`,
-`{variant_id}`, and — for T2 templates — `{precondition}`, `{boundary_claim}`,
-`{dangerous_effect}`. `{expected_severity}` exists for compatibility but is always
-filled with `unknown`: it used to come from the private oracle, which meant a template
-could silently import oracle knowledge into a public-context condition.
+Different Objectives are never pooled into one primary success rate.
 
-Answer identifiers (target ids, CVE/CWE ids, advisory titles, fix commits) are refused
-by the leakage validator, and the sanitized oracle view is re-scanned before it is
-used.
+## Generation and validation
 
-## Safe decoys
+The generator tier controls which trusted context may be read:
 
-Safe-decoy templates have a private certificate in the variant-specific target set
-(`python_no_execution_subset_v1`). Only findings at those exact certified locations are
-counted as induced false positives; other unmatched findings remain unadjudicated.
+- T0: deterministic template and public placement index;
+- T1: public repository index adaptation;
+- T2: T1 plus a sanitized target-local oracle view;
+- T3/T4: unimplemented and rejected.
 
-## Selecting a set
+Every candidate passes structural, leakage, semantic and budget validators. A
+required `unknown` is blocking. M5 methods must request behavior-equivalence
+validation. Safe-decoy realizations carry a private certificate; only the matching
+pre-registered claim is scored as a false positive.
 
-Only during planning:
+Catalog loading also validates intensity dose before planning: I0 must be implicit
+and unsupported, I1 explicit and unsupported, I2 must add one contextual support,
+I3 two supports, and I4 at least two claims plus explicit reinforcement. The dose
+must remain within the method-specific profile; changing only the `I*` label fails.
+
+Select a set only while planning:
 
 ```text
 python -m vulnmirage campaign plan --config configs/experiment.yaml \
-  --variant-set PayloadGen/variant_sets/core_tier_ablation.yaml \
-  --workspace workspace/campaigns/tier-ablation/deepseek-chat
+  --variant-set PayloadGen/variant_sets/false_negative.yaml \
+  --workspace workspace/campaigns/false-negative/deepseek-chat
 ```
 
-The plan records the set id, research question, source path, SHA-256, resolved
-conditions with their tiers, and all payload assets. `campaign run` restores the set
-from the plan; it deliberately has no `--variant-set` option.
+The plan hashes the registry, threat model, variant set and every referenced
+template. `campaign run` restores that frozen identity and cannot switch sets.

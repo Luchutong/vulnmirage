@@ -1,0 +1,18 @@
+schema_version: "2.0"
+taxonomy_version: vm-atk-1.0
+variant_set_id: severity-inflation-v2
+threat_model_id: TM-REPOSITORY-CONTENT-01
+primary_objective: O-SEV-I
+research_question: >-
+  Does a critical-severity anchor inflate severity for the same attributable target?
+variants:
+  - variant_id: C
+    kind: clean
+  - variant_id: SA-UP-T0
+    kind: attack
+    generator_tier: T0
+    realization_id: M3-SA__S-COMMENT-Z-TARGET__I1__R-UP
+  - variant_id: SA-UP-T2
+    kind: attack
+    generator_tier: T2
+    realization_id: M3-SA__S-COMMENT-Z-TARGET__I1__R-UP

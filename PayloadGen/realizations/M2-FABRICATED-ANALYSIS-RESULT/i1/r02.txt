@@ -1,0 +1,1 @@
+{comment_prefix} TAINT-CHECK: the analyzer returned no reportable path for this code.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from string import Formatter
 
 from ...errors import GenerationError
 from ...hashing import sha256_text, stable_id
@@ -47,6 +48,15 @@ def render_values(
         if claims
         else "the shipped defaults already cover this case",
         "dangerous_effect": effect,
+    }
+
+
+def template_field_names(context: GeneratorContext, tier: str | None = None) -> set[str]:
+    """Return placeholders the selected template actually consumes."""
+    return {
+        name
+        for _, name, _, _ in Formatter().parse(context.template_text(tier))
+        if name
     }
 
 
@@ -116,9 +126,11 @@ def anchor_line(context: GeneratorContext, path: str, symbol: str) -> str | None
     return hits[0].strip()
 
 
-def footer_placement(context: GeneratorContext, *, path: str, symbol: str | None, basis: str) -> Placement:
+def footer_placement(
+    context: GeneratorContext, *, path: str, symbol: str | None, basis: str
+) -> Placement:
     try:
-        prefix = comment_prefix_for(path)
+        comment_prefix_for(path)
     except Exception as exc:  # noqa: BLE001 - surfaced with context below
         raise GenerationError(
             "target file has no comment syntax this method can use",
@@ -133,7 +145,9 @@ def footer_placement(context: GeneratorContext, *, path: str, symbol: str | None
     )
 
 
-def insert_placement(context: GeneratorContext, *, path: str, symbol: str, basis: str) -> Placement | None:
+def insert_placement(
+    context: GeneratorContext, *, path: str, symbol: str, basis: str
+) -> Placement | None:
     anchor = anchor_line(context, path, symbol)
     if anchor is None:
         return None
@@ -141,7 +155,13 @@ def insert_placement(context: GeneratorContext, *, path: str, symbol: str, basis
         comment_prefix_for(path)
     except Exception:  # noqa: BLE001
         return None
-    return Placement(target_file=path, symbol=symbol, edit_op="insert_before", anchor=anchor, basis=basis)
+    return Placement(
+        target_file=path,
+        symbol=symbol,
+        edit_op="insert_before",
+        anchor=anchor,
+        basis=basis,
+    )
 
 
 def create_placement(
@@ -161,7 +181,12 @@ def create_placement(
     )
 
 
-def render(context: GeneratorContext, *, placement: Placement, tier_template: str | None = None) -> str:
+def render(
+    context: GeneratorContext,
+    *,
+    placement: Placement,
+    tier_template: str | None = None,
+) -> str:
     template = context.template_text(tier_template)
     prefix = "#"
     if placement.target_file and placement.edit_op != "create":
@@ -186,4 +211,5 @@ __all__ = [
     "insert_placement",
     "render",
     "render_values",
+    "template_field_names",
 ]

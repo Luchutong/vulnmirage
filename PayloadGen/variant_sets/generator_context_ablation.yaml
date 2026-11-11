@@ -1,0 +1,24 @@
+schema_version: "2.0"
+taxonomy_version: vm-atk-1.0
+variant_set_id: generator-context-ablation-v2
+threat_model_id: TM-REPOSITORY-CONTENT-01
+primary_objective: O-FN
+research_question: >-
+  Holding objective, method, surface, intensity and threat model fixed, how does
+  the generator context available at T0, T1 and T2 change the realized attack?
+variants:
+  - variant_id: C
+    kind: clean
+
+  - variant_id: FEP-GEN-T0
+    kind: attack
+    generator_tier: T0
+    realization_id: M2-FEP__S-COMMENT-Z-TARGET__I1__R01
+  - variant_id: FEP-GEN-T1
+    kind: attack
+    generator_tier: T1
+    realization_id: M2-FEP__S-COMMENT-Z-TARGET__I1__R01
+  - variant_id: FEP-GEN-T2
+    kind: attack
+    generator_tier: T2
+    realization_id: M2-FEP__S-COMMENT-Z-TARGET__I1__R01

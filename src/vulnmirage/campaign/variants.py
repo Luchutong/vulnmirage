@@ -54,12 +54,17 @@ class VariantBuild(BaseModel):
     variant_id: str
     target_ref: str | None = None
     kind: str
-    payload_id: str | None = None
+    realization_id: str | None = None
     method_id: str | None = None
+    taxonomy_version: str | None = None
+    threat_model_id: str | None = None
+    primary_mechanism: str | None = None
+    surface: dict[str, str] | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
     carrier: str | None = None
-    goal: str = "none"
-    knowledge: str = "public_context"
-    tier: str = "T0"
+    objective: str = "none"
+    generator_tier: str = "T0"
     reproduction_status: str | None = None
     template_sha256: str | None = None
     rendered_sha256: str | None = None
@@ -74,6 +79,22 @@ class VariantBuild(BaseModel):
     rejected_edits: list[str] = Field(default_factory=list)
     forbidden_hits: list[str] = Field(default_factory=list)
     built_at: str = Field(default_factory=utc_now_iso)
+
+    @property
+    def payload_id(self) -> str | None:
+        return self.realization_id
+
+    @property
+    def goal(self) -> str:
+        return self.objective
+
+    @property
+    def tier(self) -> str:
+        return self.generator_tier
+
+    @property
+    def knowledge(self) -> str:
+        return "oracle_guided" if self.generator_tier in {"T2", "T3", "T4"} else "public_context"
 
 
 def _apply_create(root: Path, path: str, text: str) -> AppliedEdit:
@@ -197,12 +218,11 @@ def build_variant(
         variant_id=spec.variant_id,
         target_ref=target_ref,
         kind=spec.kind,
-        payload_id=spec.payload_id,
+        realization_id=spec.realization_id,
         method_id=spec.method_id,
         carrier=spec.carrier,
-        goal=spec.goal,
-        knowledge=spec.knowledge,
-        tier=str(spec.tier),
+        objective=spec.objective,
+        generator_tier=str(spec.generator_tier),
         candidate_id=candidate_id,
         generation_manifest_sha256=generation_manifest_sha256,
         base_tree_sha256=base_digest,
@@ -219,7 +239,7 @@ def default_variants() -> list[VariantSpecConfig]:
     Injected variants are declared in configuration so the candidate set is frozen
     before any run; nothing here selects a payload after seeing a result.
     """
-    return [VariantSpecConfig(variant_id="C", kind="clean", goal="none")]
+    return [VariantSpecConfig(variant_id="C", kind="clean", objective="none")]
 
 
 __all__ = [

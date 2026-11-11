@@ -1,0 +1,1 @@
+{comment_prefix} TAINT-CHECK: the candidate for {target_function} was suppressed after the analyzer classified {precondition} as unreachable.

@@ -60,6 +60,11 @@
           "title": "Enforcement",
           "type": "string"
         },
+        "enforcement_verified": {
+          "default": false,
+          "title": "Enforcement Verified",
+          "type": "boolean"
+        },
         "gateway_reachable": {
           "anyOf": [
             {
@@ -90,6 +95,15 @@
           "title": "Notes",
           "type": "array"
         },
+        "probe_origin": {
+          "default": "campaign_host",
+          "enum": [
+            "campaign_host",
+            "agent_network_boundary"
+          ],
+          "title": "Probe Origin",
+          "type": "string"
+        },
         "probe_timeout_seconds": {
           "title": "Probe Timeout Seconds",
           "type": "number"
@@ -112,6 +126,12 @@
         },
         "verdict": {
           "default": "unknown",
+          "enum": [
+            "open",
+            "observed_unreachable",
+            "enforced_blocked",
+            "unknown"
+          ],
           "title": "Verdict",
           "type": "string"
         }

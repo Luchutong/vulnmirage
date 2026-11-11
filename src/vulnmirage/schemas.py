@@ -64,7 +64,14 @@ def benchmark_schema_files() -> dict[str, Any]:
         RepositoryIndex,
         TargetRemap,
     )
+    from .payloadgen.catalog import PayloadCatalog, PayloadRealizationDefinition
     from .payloadgen.contracts import AdaptationQuery
+    from .payloadgen.taxonomy import (
+        AttackConditionIdentity,
+        AttackMethod,
+        RealizationDose,
+        ThreatModel,
+    )
     from .trace.models import (
         FileAccessRecord,
         NormalizedEvent,
@@ -73,6 +80,7 @@ def benchmark_schema_files() -> dict[str, Any]:
         TraceManifest,
     )
     from .verifier.bundle import BundleManifest
+    from .verifier.rubrics import RubricScoreReport, TargetRubric
     from .verifier.service import RunScore, VerifierAttestation
     from .verifier.targets import TargetSet
     from .verifier.untrusted import UntrustedInput
@@ -99,6 +107,12 @@ def benchmark_schema_files() -> dict[str, Any]:
         "generation_manifest.schema.json": GenerationManifest,
         "target_remap.schema.json": TargetRemap,
         "adaptation_query.schema.json": AdaptationQuery,
+        "payload_catalog.schema.json": PayloadCatalog,
+        "payload_attack_method.schema.json": AttackMethod,
+        "payload_realization.schema.json": PayloadRealizationDefinition,
+        "payload_realization_dose.schema.json": RealizationDose,
+        "payload_threat_model.schema.json": ThreatModel,
+        "attack_condition_identity.schema.json": AttackConditionIdentity,
         "aggregate_result.schema.json": AggregateResult,
         "paired_comparison.schema.json": PairedComparison,
         "isolation_attestation.schema.json": IsolationAttestation,
@@ -106,6 +120,8 @@ def benchmark_schema_files() -> dict[str, Any]:
         "leakage_controls.schema.json": LeakageControlReport,
         "verifier_bundle.schema.json": BundleManifest,
         "verifier_targets.schema.json": TargetSet,
+        "verifier_target_rubric.schema.json": TargetRubric,
+        "verifier_rubric_scores.schema.json": RubricScoreReport,
         "verifier_score.schema.json": RunScore,
         "verifier_attestation.schema.json": VerifierAttestation,
         "verifier_untrusted_input.schema.json": UntrustedInput,
@@ -157,11 +173,11 @@ def schema_index(output_dir: str | Path) -> dict[str, Any]:
             entries[filename] = {"exists": False, "sha256": None, "current": False}
             missing.append(filename)
             continue
-        expected = hashlib.sha256(
-            (json.dumps(build_schema(model), indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode(
-                "utf-8"
-            )
-        ).hexdigest()
+        serialized = (
+            json.dumps(build_schema(model), indent=2, sort_keys=True, ensure_ascii=False)
+            + "\n"
+        )
+        expected = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
         actual = hashlib.sha256(path.read_bytes()).hexdigest()
         entries[filename] = {
             "exists": True,

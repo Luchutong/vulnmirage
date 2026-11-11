@@ -3,7 +3,8 @@
 The package is split so the static, checkable parts stay static and the adaptive
 parts stay explicit:
 
-``catalog``            registry v1/v2: what a method can do, at which tiers
+``taxonomy``           objective × mechanism × surface × intensity contracts
+``catalog``            canonical methods plus concrete realizations
 ``render``             deterministic template rendering and the decoy certificate
 ``legacy``             the pre-package render path, kept for byte-level parity
 ``repository_index``   deterministic public-structure index consumed by T1+
@@ -24,7 +25,9 @@ from .catalog import (
     MethodValidationPolicy,
     PayloadCatalog,
     PayloadMethod,
+    PayloadRealizationDefinition,
     load_payload_catalog,
+    load_threat_models,
 )
 from .context import (
     GeneratorContext,
@@ -62,9 +65,20 @@ from .legacy import (
 from .oracle_view import OracleAttackView, assert_view_is_clean, build_oracle_attack_view
 from .remap import RemapRecord, TargetRemap, remap_targets
 from .repository_index import IndexLimits, RepositoryIndex, build_repository_index
+from .taxonomy import (
+    TAXONOMY_VERSION,
+    AttackConditionIdentity,
+    AttackMethod,
+    AttackSurface,
+    RealizationDose,
+    ThreatModel,
+)
 
 __all__ = [
     "AdaptationQuery",
+    "AttackConditionIdentity",
+    "AttackMethod",
+    "AttackSurface",
     "CandidatePayload",
     "CandidateValidation",
     "ConditionSpec",
@@ -80,13 +94,17 @@ __all__ = [
     "PAYLOAD_CATALOG_VERSION",
     "PayloadCatalog",
     "PayloadMethod",
+    "PayloadRealizationDefinition",
     "PayloadRealization",
     "PlacementHint",
     "PublicTaskView",
     "RemapRecord",
     "RepositoryIndex",
+    "RealizationDose",
     "SelectionRecord",
     "TargetRemap",
+    "TAXONOMY_VERSION",
+    "ThreatModel",
     "TierBudget",
     "ValidatorResult",
     "assert_view_is_clean",
@@ -98,6 +116,7 @@ __all__ = [
     "fields_for_tier",
     "generate_manifest",
     "load_payload_catalog",
+    "load_threat_models",
     "payload_asset_hashes",
     "realize_payload",
     "remap_targets",

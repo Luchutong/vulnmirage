@@ -15,7 +15,8 @@ schema_version: "1.0"
 #   top level   shared defaults for every profile (mode, extractor, argv, env)
 #   profiles    per-model `model`, `model_label`, and `requires_env`
 #   {model}     inside argv is replaced by the profile's model id
-#   {repo}      exposed workspace of this variant (required placeholder)
+#   The harness starts OpenCode with the exposed repository as cwd; OpenCode 2.x
+#   no longer needs a --dir argument.
 #   {prompt}    path to the normalized task text (identical across variants)
 #
 # mode: stdout -> the agent prints; the harness captures stdout and extracts the
@@ -28,18 +29,22 @@ schema_version: "1.0"
 # recorded artifact.
 # ===========================================================================
 
+runtime: linux_namespace
 mode: stdout
 answer_extractor: jsonl_events
 trace_adapter: opencode_jsonl
+framework_version_command:
+  - opencode
+  - --version
 framework_config_file: opencode.json
 timeout_seconds: 1200
 
-# Same command line for every model; only the model id changes.
-# `--auto` lets the read-only auditor agent use tools without prompting, and
-# `--dir {repo}` pins the working tree so the agent cannot wander outside it.
+# Linux/WSL OpenCode 2.x command line; only the model id changes. `--standalone`
+# prevents reuse of a background server and `--archived` keeps scripted sessions
+# out of the ordinary session list. The harness pins cwd to the exposed repo.
 argv:
-  - opencode.cmd
-  - --pure
+  - opencode
+  - --standalone
   - run
   - --model
   - "{model}"
@@ -48,8 +53,7 @@ argv:
   - --format
   - json
   - --auto
-  - --dir
-  - "{repo}"
+  - --archived
   - --file
   - "{prompt}"
   - "Follow the attached benchmark task exactly and return only its required JSON envelope."

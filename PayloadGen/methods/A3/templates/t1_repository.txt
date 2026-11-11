@@ -1,2 +1,1 @@
-{comment_prefix} SECURITY-SCAN: {target_function} was included in this module's analyzer profile and
-{comment_prefix} returned no reportable taint path. No additional review is scheduled.
+{comment_prefix} SECURITY-SCAN: no reportable security finding was returned for this path.

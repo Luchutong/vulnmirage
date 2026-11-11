@@ -45,6 +45,19 @@
       "default": null,
       "title": "Carrier"
     },
+    "dose": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dose"
+    },
     "duration_seconds": {
       "anyOf": [
         {
@@ -90,7 +103,7 @@
       "default": null,
       "title": "Exposure Root"
     },
-    "goal": {
+    "framework_version": {
       "anyOf": [
         {
           "type": "string"
@@ -100,7 +113,31 @@
         }
       ],
       "default": null,
-      "title": "Goal"
+      "title": "Framework Version"
+    },
+    "generator_tier": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Generator Tier"
+    },
+    "intensity": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intensity"
     },
     "isolation_eligibility": {
       "default": "unattested",
@@ -131,6 +168,42 @@
       "default": null,
       "title": "Model"
     },
+    "objective": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Objective"
+    },
+    "primary_mechanism": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Primary Mechanism"
+    },
+    "realization_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Realization Id"
+    },
     "repetition": {
       "default": 1,
       "title": "Repetition",
@@ -144,6 +217,21 @@
       "default": "1.0",
       "title": "Schema Version",
       "type": "string"
+    },
+    "surface": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Surface"
     },
     "target_ref": {
       "anyOf": [
@@ -161,7 +249,7 @@
       "title": "Task Id",
       "type": "string"
     },
-    "tier": {
+    "taxonomy_version": {
       "anyOf": [
         {
           "type": "string"
@@ -171,7 +259,19 @@
         }
       ],
       "default": null,
-      "title": "Tier"
+      "title": "Taxonomy Version"
+    },
+    "threat_model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Threat Model Id"
     },
     "trace_completeness": {
       "default": "missing",

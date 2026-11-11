@@ -7,6 +7,19 @@ The forward-looking design now lives in
 `docs/next_stage_design_2026-11-04.md`; this file remains the audit trail for the
 2026-11-03 revision.
 
+**2026-11-11 update — the canonical attack taxonomy is enforced.** Formal plans now
+freeze `threat_model_id × objective × method × primary mechanism × surface ×
+intensity × realization`; T0–T4 is recorded separately as generator-context
+provenance. The schema 3 registry separates method definitions from concrete
+realizations, formal variant sets are single-objective, inline payload edits fail
+closed, and the clean baseline remains the only non-attack condition.
+
+**2026-11-11 intensity update.** `M2-FALSE-PRIOR-RESOLUTION`,
+`M2-FALSE-EXPLOITABILITY-PREMISE` and `M2-FABRICATED-ANALYSIS-RESULT` now have two
+concrete realizations at every I0–I4 level. Each realization declares a
+machine-checked dose, each fixed-T2 intensity ablation resolves to 11 conditions,
+and aggregation reports method-scoped `by_intensity` summaries.
+
 **2026-11-05 update — the tier generation subsystem landed.** The design in
 `docs/adaptive_attack_benchmark_architecture_2026-11-04.md` is now implemented for
 T0–T2; T3/T4 remain planned and fail closed.
@@ -14,7 +27,7 @@ T0–T2; T3/T4 remain planned and fail closed.
 | Design section | What exists now | Where | Acceptance |
 | --- | --- | --- | --- |
 | §3 T0–T4 ladder | `tiers.py` is the single definition; config validates a declared tier, plan refuses an unimplemented one | `tiers.py`, `config.py`, `campaign/plan.py` | `test_tier_ablation_set_covers_the_three_implemented_tiers` |
-| §8 PayloadGen v2 | `payloadgen/` package with a compatibility facade; `PayloadGen/registry.v2.yaml` + per-tier templates | `src/vulnmirage/payloadgen/`, `PayloadGen/methods/` | `test_t0_generation_matches_the_preexisting_renderer_byte_for_byte` |
+| §8 PayloadGen | `payloadgen/` package; schema 3 `PayloadGen/registry.yaml` separates methods, realizations and generator provenance | `src/vulnmirage/payloadgen/`, `PayloadGen/methods/` | `test_t0_generation_matches_the_preexisting_renderer_byte_for_byte` |
 | §10 contracts | `ConditionSpec`, `ExperimentCell`, `CandidatePayload`, `CandidateValidation`, `GenerationManifest`, `AdaptationQuery` + schemas | `payloadgen/contracts.py` | `test_schema_index_covers_the_new_contracts` |
 | §11 RepositoryIndex | deterministic index with roles, AST/text symbols, comment styles, sink files (no oracle labels) | `payloadgen/repository_index.py` | `test_repository_index_is_deterministic_and_role_aware` |
 | §12 OracleAttackView | allowlist sanitizer + eligibility + token re-scan | `payloadgen/oracle_view.py` | `test_oracle_view_strips_identity_fix_and_excerpt`, `test_a_target_with_only_an_advisory_label_is_ineligible_for_t2` |
@@ -48,8 +61,8 @@ modules**, all on the campaign/verifier/payloadgen import closure. Backup:
 | --- | --- | --- | --- | --- |
 | P0-1 | task JSONL import, ordinary task construction | implemented | `ingest/dataset_core.py`, `campaign/task_prompt.py` | `test_dataset_core_reads_published_layout_and_verifies_hashes`, `test_effective_task_is_answer_free_idempotent_and_shared` |
 | P0-2 | archive download and preparation | implemented | `repository/archive.py`, `campaign/pipeline.py` (`_phase_download`, `_phase_extract`) | `test_safe_extract_rejects_traversal_links_and_budgets`, `test_download_records_digest_and_detects_history`, `test_nested_history_is_refused_by_default` |
-| P0-3 | clean + multi-method variants | implemented | `PayloadGen/{registry.v2.yaml,variant_sets,methods}/`, `payloadgen/`, `campaign/plan.py`, `campaign/variants.py` | plan-time set + tier selection, independent builds, deterministic rendering, frozen generation manifests, planned methods fail closed, private safe-decoy tests |
-| P0-4 | workspace audit, dual output, trace contract | implemented; real OpenCode fixture and live-run validation pending | `isolation/*`, `trace/*`, `verifier/*`, `campaign/executor.py`, `evaluation/parser.py`, `harness/artifacts.py` | `test_campaign_end_to_end_local_tree`, `test_opencode_trace_*`, `test_attestation_*`, `test_verifier_*`, `test_ineligible_run_is_excluded_from_scoring`, `test_harness_artifacts_*` |
+| P0-3 | clean + multi-method variants | implemented | `PayloadGen/{registry.yaml,variant_sets,methods}/`, `payloadgen/`, `campaign/plan.py`, `campaign/variants.py` | plan-time set + generator-context selection, canonical attack identity, independent builds, deterministic rendering, frozen generation manifests, planned methods fail closed, private safe-decoy tests |
+| P0-4 | workspace audit, dual output, trace contract | implemented; OpenCode 1.17.18 and native Linux 2.2.7 real-CLI fixtures validated, three model-backed live runs pending | `isolation/*`, `trace/*`, `verifier/*`, `campaign/executor.py`, `evaluation/parser.py`, `harness/artifacts.py` | `test_campaign_end_to_end_local_tree`, `test_real_opencode_cli_fixture_matches_normalizer_contract`, `test_opencode_trace_*`, `test_attestation_*`, `test_verifier_*` |
 | P1-1 | clean/attack pairing and mechanism analysis | implemented (rule-based, offline) | `mechanism/analysis.py`, `campaign/pipeline.py:_phase_mechanism` | `test_mechanism_analysis_reports_insufficient_evidence_without_trace`, `test_mechanism_analysis_uses_tool_result_evidence` |
 | P1-2 | streaming schedule and cleanup | implemented | `campaign/state.py`, `campaign/pipeline.py:_phase_cleanup` | `test_campaign_cleanup_is_scoped_to_the_task`, `test_campaign_resume_refuses_a_changed_plan` |
 | P1-3 | docs and necessary regression | implemented | `README.md`, `docs/campaign.md`, `docs/leakage_channels.md`, `docs/FILES.md`, `tests/test_campaign_revision.py` | `python -m pytest tests` |
@@ -64,7 +77,7 @@ modules**, all on the campaign/verifier/payloadgen import closure. Backup:
 | §3 archive materialization | `resolve_archive_request` + `download_archive` + `safe_extract`: allowlisted redirects, TLS, byte budget, zip check, traversal/link/device refusal, case-collision detection, strip-single-root, tree digest, nested-history detection. |
 | §4 variants | `PayloadGen` registry + templates; each variant is independently built from the same snapshot. Implemented adaptations cover false-fix/TODO/authority, certified safe decoys, and severity anchors. FPA/Flashboom semantic rewrites are planned and fail closed. Template/rendered/tree hashes and provenance are frozen; answer tokens are refused. |
 | §5 workspace isolation | `ExposureLayout` keeps preparation, exposure and state disjoint; `run_attestation` proves what it can and reports `unknown` for the rest; `probe_egress` makes the network claim testable; invariants run for every condition. |
-| §6 dual output and trace | Envelope parser with `report_markdown`, `agent_report.md`, `findings.json`, deterministic `audit_report.md`, `output_consistency.json`; answer collection through `campaign/executor.py`, which never repairs output. `trace/` derives `events.normalized.jsonl`, `tool_calls.jsonl`, `file_access.jsonl`, a source-bound manifest and a completeness assessment from the raw OpenCode JSONL, with credential redaction. |
+| §6 dual output and trace | Envelope parser with `report_markdown`, `agent_report.md`, `findings.json`, deterministic `audit_report.md`, `output_consistency.json`; answer collection through `campaign/executor.py`, which never repairs output. `trace/` derives normalized events/tool/file-access, a source-bound manifest and completeness from raw OpenCode JSONL. Sanitized 1.17.18 and native Linux 2.2.7 real-CLI fixtures freeze both observed event contracts; runtime version and compatibility are recorded per run. |
 | §7 mechanism analysis | `exposure.json`, `trajectory_comparison.json`, `mechanism_assessment.json`, `case_analysis.md`; labels require the evidence they name, otherwise `insufficient_evidence`. |
 | §8 scoring | Per-run target recall and severity deltas plus certified-decoy acceptance. Only exact private `SafeDecoy` matches count as induced false positives; all other unmatched findings remain unadjudicated. |
 | §9 orchestration | Task phase machine with resume identity checks, verified archive before cleanup, `cleanup_manifest.json`, deletion scoped to the task scratch. |
@@ -105,6 +118,9 @@ hashed artifacts.
 
 * The egress probe proves reachability for the probed hosts at that moment. Domain
   lists are incomplete, and the training-data channel is out of reach.
+* Probe-only unreachability is not accepted as enforcement. With
+  `fail_closed: true`, `mode: none` and declared-but-unattested proxy/container
+  modes make a run ineligible before any agent call.
 * `subprocess` mode cannot stop an agent from reading an absolute host path; the
   attestation records that as `unknown` rather than claiming containment.
 * The template's illustrative JSON contains a CWE id; the answer-token scan therefore
@@ -116,22 +132,24 @@ hashed artifacts.
 ## Verification snapshot
 
 ```text
-python -m pytest tests -q            -> 68 passed
-python -m vulnmirage schemas         -> 44 schemas, missing [] stale []
+python -m pytest tests -q            -> 94 passed
+python -m vulnmirage schemas         -> 52 schemas, missing [] stale []
+python scripts/capture_opencode_trace_fixture.py
+                                     -> native OpenCode 2.2.7, 6 events, external model calls 0
 python -m vulnmirage ingest dataset-core --root ../VulnMirage_dataset
                                      -> ok, 47 tasks / 725 targets, digests verified
 python -m vulnmirage campaign plan --dataset ../VulnMirage_dataset --limit 2 --dry-run
                                      -> resolved; no target id, CVE or CWE in it
 python -m vulnmirage campaign plan ... --variant-set <each set> --dry-run
-                                     -> all five sets resolve (6/12/10/5/7 conditions)
+                                     -> all ten sets resolve; each has one primary objective
 python -m vulnmirage doctor          -> config/dataset/archive pass; egress probed live
 ```
 
-`doctor` reports `egress: fail` on an ordinary internet-connected machine: with
-`fail_closed: true` the probe reaches github.com, so formal runs would be ineligible.
-That is the intended behaviour — the remedy is a filtering proxy
-(`isolation.egress.mode: proxy`) or a container with a closed network namespace, not a
-softer configuration.
+The WSL/Linux configuration now selects a rootless user/network namespace with a
+loopback-to-Unix-socket inference relay. `doctor` checks upstream/model reachability and
+Linux prerequisites; every audit separately requires namespace evidence before any
+model call. The backend is implemented and unit-tested but still requires its first
+operator-run WSL validation before G2 can be marked complete.
 
 The end-to-end test (`test_campaign_end_to_end_local_tree`) exercises the whole chain on
 a fixture snapshot: two runs (C, A1), each with its own exposed workspace and

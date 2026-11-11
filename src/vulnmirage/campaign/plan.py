@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,7 +30,7 @@ from ..hashing import atomic_write_json, sha256_file, sha256_text, stable_id, ut
 from ..ingest.dataset_core import DatasetCore, load_dataset_core
 from ..repository.archive import resolve_archive_request
 
-PLAN_SCHEMA_VERSION = "2.0"
+PLAN_SCHEMA_VERSION = "3.0"
 
 
 class PlanVariant(BaseModel):
@@ -40,19 +41,40 @@ class PlanVariant(BaseModel):
     target_ref: str | None = None
     condition_id: str = ""
     kind: str
-    tier: str = "T0"
-    payload_id: str | None = None
+    generator_tier: str = "T0"
+    realization_id: str | None = None
     method_id: str | None = None
+    taxonomy_version: str | None = None
+    threat_model_id: str | None = None
+    objective: str = "none"
+    primary_mechanism: str | None = None
+    surface: dict[str, str] | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
     reproduction_status: str | None = None
     source_url: str | None = None
     carrier: str | None = None
-    goal: str = "none"
-    knowledge: str = "public_context"
     generator_profile: str = "default"
     candidate_budget: int = 1
     selection_policy: str = "semantic_fit_then_deterministic_tiebreak"
     edit_count: int = 0
     edit_paths: list[str] = Field(default_factory=list)
+
+    @property
+    def tier(self) -> str:
+        return self.generator_tier
+
+    @property
+    def payload_id(self) -> str | None:
+        return self.realization_id
+
+    @property
+    def goal(self) -> str:
+        return self.objective
+
+    @property
+    def knowledge(self) -> str:
+        return "oracle_guided" if self.generator_tier in {"T2", "T3", "T4"} else "public_context"
 
 
 class PlanTierProfile(BaseModel):
@@ -85,7 +107,12 @@ class VariantSetDefinition(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: str = "1.0"
+    schema_version: Literal["2.0"] = "2.0"
+    taxonomy_version: Literal["vm-atk-1.0"] = "vm-atk-1.0"
+    threat_model_id: str = Field(min_length=1)
+    primary_objective: str = Field(
+        pattern=r"^O-(FN|FP|SEV-D|SEV-I|EV|SCOPE|AVAIL)$"
+    )
     variant_set_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
     research_question: str = Field(min_length=1)
     variants: list[VariantSpecConfig]
@@ -178,6 +205,9 @@ class PlanDoc(BaseModel):
     variant_set_file: str | None = None
     variant_set_sha256: str | None = None
     research_question: str = ""
+    taxonomy_version: str | None = None
+    threat_model_id: str | None = None
+    primary_objective: str | None = None
     payload_assets_sha256: dict[str, str] = Field(default_factory=dict)
     task_prompt_rule_version: str = TASK_PROMPT_RULE_VERSION
     generation: PlanGeneration = Field(default_factory=PlanGeneration)
@@ -199,19 +229,28 @@ def load_variant_set(loaded: LoadedConfig) -> VariantSetDefinition | None:
     import yaml
 
     payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if isinstance(payload, list):
-        payload = {
-            "variant_set_id": path.stem,
-            "research_question": "legacy variant list",
-            "variants": payload,
-        }
-    elif isinstance(payload, dict):
-        payload = dict(payload)
-        payload.setdefault("variant_set_id", path.stem)
-        payload.setdefault("research_question", "legacy variant set")
-    else:
+    if not isinstance(payload, dict):
+        raise CampaignError("variant set must be a mapping", details={"path": str(path)})
+    forbidden_identity_keys = {
+        "tier",
+        "payload_id",
+        "goal",
+        "knowledge",
+        "method_id",
+        "carrier",
+        "objective",
+    }
+    authored_identity = {
+        str(item.get("variant_id") or "<missing>"): sorted(
+            forbidden_identity_keys & set(item)
+        )
+        for item in (payload.get("variants") or [])
+        if isinstance(item, dict) and forbidden_identity_keys & set(item)
+    }
+    if authored_identity:
         raise CampaignError(
-            "variant set must be a mapping or list", details={"path": str(path)}
+            "variant rows may not override catalog-derived attack identity",
+            details={"path": str(path), "fields": authored_identity},
         )
     try:
         definition = VariantSetDefinition.model_validate(payload)
@@ -221,6 +260,26 @@ def load_variant_set(loaded: LoadedConfig) -> VariantSetDefinition | None:
         ) from exc
     if not definition.variants:
         raise CampaignError("variant set declares no variants", details={"path": str(path)})
+    unregistered = [
+        item.variant_id
+        for item in definition.variants
+        if item.kind == "attack" and not item.realization_id
+    ]
+    if unregistered:
+        raise CampaignError(
+            "formal attack variants must reference a registered realization",
+            details={"path": str(path), "variant_ids": unregistered},
+        )
+    inline_attacks = [
+        item.variant_id
+        for item in definition.variants
+        if item.kind == "attack" and item.edits
+    ]
+    if inline_attacks:
+        raise CampaignError(
+            "formal variant sets may not contain arbitrary inline attack edits",
+            details={"path": str(path), "variant_ids": inline_attacks},
+        )
     clean_ids = [item.variant_id for item in definition.variants if item.kind == "clean"]
     if clean_ids != ["C"]:
         raise CampaignError(
@@ -230,7 +289,12 @@ def load_variant_set(loaded: LoadedConfig) -> VariantSetDefinition | None:
     from ..payloadgen import validate_payload_references
 
     catalog = loaded.resolve_asset(config.payload_catalog) if config.payload_catalog else None
-    validate_payload_references(definition.variants, catalog)
+    validate_payload_references(
+        definition.variants,
+        catalog,
+        threat_model_id=definition.threat_model_id,
+        primary_objective=definition.primary_objective,
+    )
     return definition
 
 
@@ -258,6 +322,7 @@ def _plan_variant(
     *,
     variant_id: str | None = None,
     target_ref: str | None = None,
+    threat_model_id: str | None = None,
 ) -> PlanVariant:
     method = methods.get(str(spec.payload_id)) if spec.payload_id else None
     placement = getattr(method, "placement", None)
@@ -274,7 +339,7 @@ def _plan_variant(
         )
     else:
         edit_paths = sorted({edit.path for edit in spec.edits})
-    tier = str(spec.tier)
+    tier = str(spec.generator_tier)
     profile = generation.tier_profiles.get(tier) if generation else None
     return PlanVariant(
         variant_id=variant_id or spec.variant_id,
@@ -282,18 +347,27 @@ def _plan_variant(
         target_ref=target_ref,
         condition_id=variant_id or spec.variant_id,
         kind=spec.kind,
-        tier=tier,
-        payload_id=spec.payload_id,
-        method_id=(
-            spec.method_id
-            or getattr(method, "method_id", None)
-            or getattr(method, "method_family", None)
+        generator_tier=tier,
+        realization_id=spec.realization_id,
+        method_id=spec.method_id or getattr(method, "method_id", None),
+        taxonomy_version=("vm-atk-1.0" if method else None),
+        threat_model_id=threat_model_id,
+        objective=getattr(method, "objective", spec.objective),
+        primary_mechanism=getattr(method, "primary_mechanism", None),
+        surface=(
+            method.surface.model_dump(mode="json")  # type: ignore[union-attr]
+            if method is not None
+            else None
+        ),
+        intensity=getattr(method, "intensity", None),
+        dose=(
+            method.dose.model_dump(mode="json")  # type: ignore[union-attr]
+            if method is not None
+            else None
         ),
         reproduction_status=getattr(method, "reproduction_status", None),
         source_url=getattr(method, "source_url", None),
         carrier=spec.carrier or getattr(method, "carrier", None),
-        goal=getattr(method, "objective", spec.goal),
-        knowledge=spec.knowledge,
         generator_profile=(profile.generator_profile if profile else "default"),
         candidate_budget=(profile.candidate_budget if profile else 1),
         selection_policy=(
@@ -301,7 +375,7 @@ def _plan_variant(
             if profile
             else "semantic_fit_then_deterministic_tiebreak"
         ),
-        edit_count=(1 if spec.payload_id else len(spec.edits)),
+        edit_count=(1 if spec.realization_id else len(spec.edits)),
         edit_paths=edit_paths,
     )
 
@@ -466,6 +540,7 @@ def build_plan(
                         generation,
                         variant_id=expanded_id,
                         target_ref=target.target_ref,
+                        threat_model_id=(variant_set.threat_model_id if variant_set else None),
                     )
                 )
         run_cells = [
@@ -529,6 +604,9 @@ def build_plan(
             else None
         ),
         research_question=(variant_set.research_question if variant_set else ""),
+        taxonomy_version=(variant_set.taxonomy_version if variant_set else None),
+        threat_model_id=(variant_set.threat_model_id if variant_set else None),
+        primary_objective=(variant_set.primary_objective if variant_set else None),
         payload_assets_sha256=payload_hashes,
         task_prompt_rule_version=config.campaign.task_prompt_rule_version,
         generation=generation,

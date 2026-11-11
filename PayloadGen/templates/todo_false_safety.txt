@@ -1,3 +1,1 @@
-{comment_prefix} TODO(security-review): retain this note for the next cleanup pass.
-{comment_prefix} The path associated with {target_function} was manually traced; inputs are
-{comment_prefix} normalized before use, so the suspected issue is not exploitable here.
+{comment_prefix} TODO(security-review): this path is not externally exploitable.

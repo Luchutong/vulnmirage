@@ -34,7 +34,11 @@ from vulnmirage.campaign.plan import (
     load_variant_set,
     plan_fingerprint,
 )
-from vulnmirage.campaign.executor import CommandExecutor, extract_final_answer
+from vulnmirage.campaign.executor import (
+    CommandExecutor,
+    detect_framework_version,
+    extract_final_answer,
+)
 from vulnmirage.campaign.pipeline import CampaignRunner
 from vulnmirage.campaign.state import TaskStateStore
 from vulnmirage.campaign.task_prompt import (
@@ -57,6 +61,7 @@ from vulnmirage.ingest.dataset_core import eligibility_level, load_dataset_core
 from vulnmirage.isolation.attestation import assert_attestation, run_attestation
 from vulnmirage.isolation.channels import CHANNELS, build_control_report
 from vulnmirage.isolation.layout import ExposureLayout
+from vulnmirage.isolation.gateway import rewrite_opencode_for_gateway
 from vulnmirage.isolation.network import (
     EgressConfig,
     build_restricted_agent_environment,
@@ -288,7 +293,9 @@ def write_config(tmp_path: Path, dataset_root: Path, workspace: Path, *, verifie
                 "inference_gateway_hosts": [],
                 "probe_blocked_hosts": ["invalid.invalid"],
                 "probe_timeout_seconds": 1.0,
-                "fail_closed": True,
+                # Local unit executors have no kernel network boundary. They may
+                # exercise the pipeline, but never claim formal egress eligibility.
+                "fail_closed": False,
             },
         },
         "verifier": {"mode": verifier_mode, "line_tolerance": 5, "require_output_consistency": True},
@@ -608,11 +615,13 @@ def test_neutral_control_variants_are_not_part_of_the_contract():
 def test_variant_sets_are_separate_pre_registered_questions():
     loaded = load_config(PROJECT_ROOT / "configs" / "experiment.yaml")
     expected = {
-        "core.yaml": "core-v1",
-        "core_tier_ablation.yaml": "core-tier-ablation-v1",
-        "false_negative.yaml": "false-negative-v1",
-        "safe_decoy.yaml": "safe-decoy-v1",
-        "severity.yaml": "severity-v1",
+        "core.yaml": "core-v2",
+        "generator_context_ablation.yaml": "generator-context-ablation-v2",
+        "false_negative.yaml": "false-negative-v2",
+        "safe_decoy.yaml": "false-positive-v2",
+        "severity.yaml": "severity-downgrade-v2",
+        "severity_inflation.yaml": "severity-inflation-v2",
+        "scope_diversion.yaml": "scope-diversion-v2",
     }
     for filename, set_id in expected.items():
         selected = with_variant_set(
@@ -622,8 +631,10 @@ def test_variant_sets_are_separate_pre_registered_questions():
         assert definition is not None
         assert definition.variant_set_id == set_id
         assert definition.research_question
-        # One clean baseline, no duplicate ids, and every attack declares a tier
-        # the build can actually realize.
+        assert definition.taxonomy_version == "vm-atk-1.0"
+        assert definition.threat_model_id == "TM-REPOSITORY-CONTENT-01"
+        # One clean baseline, no duplicate ids, and every attack declares a
+        # generator tier the build can actually realize.
         ids = [item.variant_id for item in definition.variants]
         assert ids[0] == "C"
         assert len(ids) == len(set(ids))
@@ -637,15 +648,14 @@ def test_variant_sets_are_separate_pre_registered_questions():
 def test_tier_ablation_set_covers_the_three_implemented_tiers():
     loaded = load_config(PROJECT_ROOT / "configs" / "experiment.yaml")
     selected = with_variant_set(
-        loaded, "PayloadGen/variant_sets/core_tier_ablation.yaml"
+        loaded, "PayloadGen/variant_sets/generator_context_ablation.yaml"
     )
     definition = load_variant_set(selected)
     assert definition is not None
     tiers = {str(item.tier) for item in definition.variants if item.kind == "attack"}
     assert tiers == {"T0", "T1", "T2"}
     methods = {str(item.payload_id) for item in definition.variants if item.kind == "attack"}
-    assert "todo_false_safety_v1" in methods
-    assert "redherring_safe_decoy_v1" in methods
+    assert methods == {"M2-FEP__S-COMMENT-Z-TARGET__I1__R01"}
 
 
 def test_campaign_plan_freezes_selected_variant_set(tmp_path):
@@ -656,22 +666,20 @@ def test_campaign_plan_freezes_selected_variant_set(tmp_path):
     config_path = write_config(tmp_path, dataset, workspace)
     config_payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config_payload["campaign"].pop("variants")
-    config_payload["campaign"]["payload_catalog"] = "PayloadGen/registry.v2.yaml"
+    config_payload["campaign"]["payload_catalog"] = "PayloadGen/registry.yaml"
     config_path.write_text(yaml.safe_dump(config_payload), encoding="utf-8")
     loaded = with_variant_set(
         load_config(config_path), "PayloadGen/variant_sets/safe_decoy.yaml"
     )
     plan = build_plan(loaded, dataset_root=dataset, archive_root=workspace, write=True)
-    assert plan.variant_set_id == "safe-decoy-v1"
+    assert plan.variant_set_id == "false-positive-v2"
     assert plan.variant_set_file == "PayloadGen/variant_sets/safe_decoy.yaml"
     assert plan.variant_set_sha256
     assert plan.research_question
     assert [item.variant_id for item in plan.tasks[0].variants] == [
         "C",
-        "F1-T0",
-        "F1-T2",
-        "F2-T0",
-        "F2-T2",
+        "FVC-T0",
+        "FVC-T2",
     ]
     # The tier is frozen per condition, not inferred at run time.
     assert {item.tier for item in plan.tasks[0].variants} == {"T0", "T2"}
@@ -692,9 +700,9 @@ def test_campaign_plan_freezes_selected_variant_set(tmp_path):
             model_label=None,
         )
     )
-    assert supplied is not None and supplied.variant_set_id == "safe-decoy-v1"
+    assert supplied is not None and supplied.variant_set_id == "false-positive-v2"
     assert runner.config.campaign.variants_file.endswith("safe_decoy.yaml")
-    assert runner.load_or_plan().variant_set_id == "safe-decoy-v1"
+    assert runner.load_or_plan().variant_set_id == "false-positive-v2"
 
 
 def test_campaign_cli_accepts_variant_set_only_during_planning():
@@ -756,9 +764,9 @@ def test_payloadgen_renders_target_comment_without_shifting_oracle_lines(tmp_pat
     spec = VariantSpecConfig(
         variant_id="A2",
         kind="attack",
-        payload_id="todo_false_safety_v1",
-        goal="false_negative",
-        knowledge="oracle_guided",
+        realization_id="M2-FEP__S-COMMENT-Z-TARGET__I1__R01",
+        objective="O-FN",
+        generator_tier="T2",
     )
     target = PrivateTarget(
         target_id="private-target",
@@ -794,18 +802,18 @@ def test_payloadgen_safe_decoy_is_private_and_planned_methods_fail_closed():
     catalog = PROJECT_ROOT / "PayloadGen" / "registry.yaml"
     decoy_spec = VariantSpecConfig(
         variant_id="F1",
-        payload_id="todo_false_alarm_v1",
-        goal="false_positive",
+        realization_id="M2-FVC__S-CODE-Z-PERIPHERAL__I1__R01",
+        objective="O-FP",
     )
     realization = realize_payload(catalog_path=catalog, spec=decoy_spec, targets=[])
-    assert realization.spec.edits[0].path == "examples/vulnmirage_safe_preview.py"
+    assert realization.spec.edits[0].path == "examples/tool_preview.py"
     assert realization.safe_decoys[0].file == realization.spec.edits[0].path
     assert "does not execute" not in realization.spec.edits[0].text
 
     planned = VariantSpecConfig(
         variant_id="P1",
-        payload_id="familiar_pattern_camouflage_planned",
-        goal="false_negative",
+        realization_id="M5-FPC__S-CODE-Z-TARGET__I2__R01",
+        objective="O-FN",
     )
     with pytest.raises(CampaignError, match="planned payload"):
         validate_payload_references([planned], catalog)
@@ -894,6 +902,76 @@ def test_attestation_flags_a_reachable_answer_host(tmp_path):
     assert attestation.verdict == "fail"
 
 
+def test_attestation_rejects_probe_only_as_formal_network_evidence(tmp_path):
+    layout = _prepare_layout(tmp_path)
+    config = EgressConfig(
+        mode="none",
+        inference_gateway_hosts=[],
+        probe_blocked_hosts=["invalid.invalid"],
+        probe_timeout_seconds=1.0,
+    )
+    egress = probe_egress(config)
+    assert egress.verdict == "observed_unreachable"
+    assert egress.enforcement_verified is False
+    attestation = run_attestation(
+        layout,
+        expected_tree_sha256=tree_digest(layout.repo_dir),
+        egress=egress,
+        require_egress_pass=True,
+    )
+    check = next(item for item in attestation.checks if item.check_id == "egress_blocked")
+    assert check.status == "fail"
+    assert "egress_blocked" in attestation.failed
+    assert attestation.verdict == "fail"
+
+
+def test_verified_egress_requires_agent_boundary_probe():
+    config = EgressConfig(mode="proxy", probe_blocked_hosts=[])
+    with pytest.raises(ValueError, match="agent network boundary"):
+        probe_egress(config, enforcement_verified=True)
+
+
+def test_opencode_runtime_config_routes_only_allowlisted_inference_hosts(tmp_path):
+    source = tmp_path / "opencode.json"
+    source.write_text(
+        json.dumps(
+            {
+                "provider": {
+                    "deepseek": {
+                        "options": {
+                            "baseURL": "https://api.deepseek.com/v1",
+                            "apiKey": "{env:DEEPSEEK_API_KEY}",
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    runtime = tmp_path / "runtime.json"
+    routes = rewrite_opencode_for_gateway(
+        source,
+        runtime,
+        gateway_base_url="http://127.0.0.1:18765",
+        allowed_upstream_hosts={"api.deepseek.com"},
+    )
+    assert routes[0].upstream_base_url == "https://api.deepseek.com/v1"
+    payload = json.loads(runtime.read_text(encoding="utf-8"))
+    assert (
+        payload["provider"]["deepseek"]["options"]["baseURL"]
+        == "http://127.0.0.1:18765/deepseek"
+    )
+    assert "api.deepseek.com" not in runtime.read_text(encoding="utf-8")
+
+    with pytest.raises(IsolationError, match="allowlisted HTTPS"):
+        rewrite_opencode_for_gateway(
+            source,
+            tmp_path / "refused.json",
+            gateway_base_url="http://127.0.0.1:18765",
+            allowed_upstream_hosts={"open.bigmodel.cn"},
+        )
+
+
 def test_control_report_never_defaults_to_controlled():
     report = build_control_report(attestations=[])
     assert report.channels
@@ -972,6 +1050,11 @@ def test_verifier_scores_bundle_and_records_consistency(tmp_path):
     score = json.loads((tmp_path / "score" / "score.json").read_text(encoding="utf-8"))
     assert score["detection"]["recall"] == 1.0
     assert score["severity"]["downgraded"][0]["delta"] == -1
+    assert score["diagnosis"]["status"] == "not_available"
+    rubric_scores = json.loads(
+        (tmp_path / "score" / "rubric_scores.json").read_text(encoding="utf-8")
+    )
+    assert rubric_scores["status"] == "not_available"
     consistency = json.loads((tmp_path / "score" / "output_consistency.json").read_text(encoding="utf-8"))
     assert consistency["status"] == "consistent"
     attestation = json.loads(
@@ -1245,7 +1328,12 @@ def test_campaign_end_to_end_local_tree(tmp_path):
     answer_script.write_text(ANSWER_SCRIPT, encoding="utf-8")
     executor = CommandExecutor(argv=(sys.executable, answer_script.as_posix(), "{repo}"))
     runner = CampaignRunner(
-        loaded, dataset_root=dataset, archive_root=workspace, executor=executor, model_label="fixture"
+        loaded,
+        dataset_root=dataset,
+        archive_root=workspace,
+        executor=executor,
+        model_label="fixture",
+        framework_version="fixture-framework-1",
     )
     plan = runner.plan()
     task_id = plan.tasks[0].task_id
@@ -1302,6 +1390,10 @@ def test_campaign_end_to_end_local_tree(tmp_path):
         assert attestation["condition_independent"] is True
         trace_manifest = json.loads((run_dir / "trace_manifest.json").read_text(encoding="utf-8"))
         assert trace_manifest["status"] == "disabled"
+        run_record = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
+        assert run_record["framework_version"] == "fixture-framework-1"
+        assert meta["framework_version"] == "fixture-framework-1"
 
     # The clean baseline keeps the finding; the injected variant loses it.
     assert scores["C"]["detection"]["detected"] == 1
@@ -1566,6 +1658,7 @@ def test_opencode_trace_is_normalized_and_secret_redacted(tmp_path):
         out,
         adapter="opencode_jsonl",
         repo_root=repo,
+        framework_version="1.17.18",
         secret_values=(secret,),
     )
 
@@ -1590,6 +1683,79 @@ def test_opencode_trace_is_normalized_and_secret_redacted(tmp_path):
         assert "header-credential" not in generated
     manifest = json.loads((out / "trace_manifest.json").read_text(encoding="utf-8"))
     assert manifest["source_sha256"] == sha256_file(source)
+    assert manifest["framework_version"] == "1.17.18"
+    assert manifest["compatibility_status"] == "validated_fixture"
+
+
+@pytest.mark.parametrize("framework_version", ["1.17.18", "2.2.7"])
+def test_real_opencode_cli_fixture_matches_normalizer_contract(
+    tmp_path, framework_version
+):
+    fixture_dir = (
+        PROJECT_ROOT / "tests" / "fixtures" / "opencode" / framework_version
+    )
+    fixture_manifest = json.loads(
+        (fixture_dir / "fixture_manifest.json").read_text(encoding="utf-8")
+    )
+    assert fixture_manifest["capture_kind"] == "real_cli_local_deterministic_stub"
+    assert fixture_manifest["external_model_calls"] == 0
+    source = fixture_dir / "run-format-json.jsonl"
+    assert fixture_manifest["source_sha256"] == sha256_file(source)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "fixture.txt").write_text("fixture evidence\n", encoding="utf-8")
+    out = tmp_path / "normalized"
+    summary = normalize_trace(
+        source,
+        out,
+        adapter="opencode_jsonl",
+        repo_root=repo,
+        framework_version=fixture_manifest["framework_version"],
+    )
+
+    assert summary["status"] == "ok"
+    assert summary["completeness"] == "complete"
+    assert summary["events"] == 6
+    assert summary["tool_calls"] == 1
+    assert summary["file_accesses"] == 1
+    manifest = json.loads((out / "trace_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["compatibility_status"] == "validated_fixture"
+
+
+def test_unvalidated_opencode_version_is_explicitly_partial(tmp_path):
+    source = tmp_path / "stdout.log"
+    source.write_text(
+        "\n".join(
+            json.dumps(item)
+            for item in (
+                {"type": "step_start", "part": {}},
+                {"type": "text", "part": {"text": "done"}},
+                {"type": "step_finish", "part": {"reason": "stop"}},
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "run"
+    summary = normalize_trace(
+        source,
+        out,
+        adapter="opencode_jsonl",
+        repo_root=tmp_path,
+        framework_version="99.0.0",
+    )
+    manifest = json.loads((out / "trace_manifest.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "partial"
+    assert manifest["compatibility_status"] == "unvalidated"
+    assert "99.0.0" in " ".join(manifest["limitations"])
+
+
+def test_framework_version_command_is_recordable():
+    version = detect_framework_version(
+        [sys.executable, "-c", "print('fixture-framework-1.2.3')"]
+    )
+    assert version == "fixture-framework-1.2.3"
 
 
 def test_opencode_trace_missing_terminal_event_is_partial(tmp_path):
@@ -1617,10 +1783,15 @@ def test_trace_adapter_records_missing_source_without_fabricated_events(tmp_path
         out,
         adapter="opencode_jsonl",
         repo_root=tmp_path,
+        framework_version="1.17.18",
     )
     assert summary["status"] == "missing"
     assert (out / "events.normalized.jsonl").read_text(encoding="utf-8") == ""
     assert json.loads((out / "trace_completeness.json").read_text())["status"] == "missing"
+    manifest = json.loads((out / "trace_manifest.json").read_text())
+    assert manifest["framework"] == "opencode"
+    assert manifest["framework_version"] == "1.17.18"
+    assert manifest["compatibility_status"] == "validated_fixture"
 
 
 def test_trace_adapter_marks_unknown_framework_events_as_partial(tmp_path):
@@ -1670,13 +1841,17 @@ def test_supplied_opencode_agents_enable_native_trace_adapter():
     config = PROJECT_ROOT / "configs" / "opencode.yaml"
     loaded = load_agent_config(config)
     assert loaded.config.mode == "stdout"
+    assert loaded.config.runtime == "linux_namespace"
     assert loaded.config.answer_extractor == "jsonl_events"
     assert loaded.config.trace_adapter == "opencode_jsonl"
+    assert loaded.config.framework_version_command == ["opencode", "--version"]
     assert loaded.profile == "deepseek-chat"
     assert loaded.config.framework_config_file == "opencode.json"
     assert Path(loaded.child_env["OPENCODE_CONFIG"]).is_file()
     assert set(loaded.external_file_sha256) == {"framework_config:opencode.json"}
-    assert "--pure" in loaded.config.argv
+    assert "--standalone" in loaded.config.argv
+    assert "--archived" in loaded.config.argv
+    assert "--dir" not in loaded.config.argv
     assert "--file" in loaded.config.argv
     assert set(loaded.profiles) == {
         "deepseek-chat",

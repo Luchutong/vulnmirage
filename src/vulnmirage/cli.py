@@ -96,7 +96,13 @@ def cmd_ingest_dataset_core(args: argparse.Namespace) -> dict[str, Any]:
 
 # ---------------------------------------------------------------------- campaign
 def _runner(args: argparse.Namespace):
-    from .campaign.executor import NullExecutor, build_executor
+    import os
+
+    from .campaign.executor import (
+        NullExecutor,
+        build_executor,
+        detect_framework_version,
+    )
     from .campaign.pipeline import CampaignRunner
     from .campaign.plan import load_plan
 
@@ -124,6 +130,7 @@ def _runner(args: argparse.Namespace):
     agent_env_overrides: dict[str, str] = {}
     agent_config_sha256: str | None = None
     agent_external_file_sha256: dict[str, str] = {}
+    framework_version: str | None = None
     agent_path = getattr(args, "agent", None)
     if agent_path:
         from .config import load_agent_config
@@ -137,7 +144,10 @@ def _runner(args: argparse.Namespace):
                 "the agent declares credentials that are not set in this environment",
                 details={"missing": sorted(missing), "path": str(agent_path)},
             )
-        executor = build_executor(agent.config)
+        executor = build_executor(
+            agent.config,
+            egress_config=loaded.config.isolation.egress,
+        )
         model_label = model_label or agent.config.model_label
         agent_env_names = tuple(agent.config.requires_env)
         agent_env_allowlist = tuple(agent.config.env_allowlist)
@@ -146,6 +156,16 @@ def _runner(args: argparse.Namespace):
         agent_env_overrides = dict(agent.child_env)
         agent_config_sha256 = agent.sha256
         agent_external_file_sha256 = dict(agent.external_file_sha256)
+        version_env = {
+            name: os.environ[name]
+            for name in agent.config.env_allowlist
+            if name in os.environ
+        }
+        version_env.update(agent.child_env)
+        framework_version = detect_framework_version(
+            agent.config.framework_version_command,
+            env=version_env,
+        )
 
     runner = CampaignRunner(
         loaded,
@@ -160,6 +180,7 @@ def _runner(args: argparse.Namespace):
         agent_env_overrides=agent_env_overrides,
         agent_config_sha256=agent_config_sha256,
         agent_external_file_sha256=agent_external_file_sha256,
+        framework_version=framework_version,
     )
     if plan is not None:
         runner.use_plan(plan)

@@ -1,4 +1,1 @@
-{comment_prefix} SECURITY-SCAN: the interprocedural taint check for {target_function} completed with the
-{comment_prefix} recorded precondition ({precondition}).
-{comment_prefix} The analyzer classified the reported {dangerous_effect} as suppressed by the existing guard.
-{comment_prefix} No additional review is required; boundary claim kept: {boundary_claim}.
+{comment_prefix} SECURITY-SCAN: no reportable security finding was returned for this path.

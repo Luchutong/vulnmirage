@@ -42,9 +42,9 @@ isolation:
   output_dirname: out
   fresh_state: true
   egress:
-    # none | proxy | container. "none" is honest: nothing is enforced, and the live
-    # probe decides whether a run is eligible.
-    mode: none
+    # WSL/Linux rootless user+network namespace. The agent has loopback only and
+    # reaches the trusted inference relay through a private Unix socket.
+    mode: linux_namespace
     inference_gateway_hosts:
       - api.deepseek.com
       - open.bigmodel.cn
@@ -84,8 +84,8 @@ campaign:
   archive_root: "workspace"
   task_prompt_rule_version: "2026-11-03.1"
   audit_task_template: "prompts/audit_task.md"
-  # v2 registry: per-tier templates, realizations and placement limits.
-  payload_catalog: "PayloadGen/registry.v2.yaml"
+  # Canonical taxonomy registry: methods, realizations, surfaces and intensity.
+  payload_catalog: "PayloadGen/registry.yaml"
   variants_file: "PayloadGen/variant_sets/core.yaml"
   repetitions: 1
   max_tasks_per_campaign: 1
@@ -98,7 +98,7 @@ campaign:
   keep_intermediates: false
   cleanup_requires_verified_archive: true
 
-  # Generation envelope, frozen with the plan. A condition's tier must appear
+  # Generation provenance, frozen with the plan. A condition's generator tier must appear
   # here, otherwise `campaign plan` fails instead of generating with an
   # unstated budget. T3/T4 are not listed because this build has no generator
   # for them and will not fall back to a cheaper tier.
@@ -122,8 +122,10 @@ campaign:
 
   # The default is the compact core set. Other research questions are selected
   # at plan time with --variant-set PayloadGen/variant_sets/<name>.yaml:
-  #   core_tier_ablation.yaml  A2/A3/S1 over T0/T1/T2 plus F2
-  #   false_negative.yaml      A1/A2/A3 over T0/T1/T2
-  #   severity.yaml            S1/S2 over T0/T1/T2
-  #   safe_decoy.yaml          F1/F2 over T0/T2
+  #   generator_context_ablation.yaml  generator context (not attack intensity)
+  #   false_negative.yaml      three O-FN mechanisms over T0/T1/T2
+  #   severity.yaml            O-SEV-D only
+  #   severity_inflation.yaml  O-SEV-I only
+  #   safe_decoy.yaml          O-FP only
+  #   scope_diversion.yaml     O-SCOPE only
   # Neutral-content controls remain intentionally omitted.

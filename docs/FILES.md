@@ -25,8 +25,8 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `experiment.yaml` | **唯一实验配置**：`archive`、`isolation`、`verifier`、`output_contract`、`campaign`（含 `generation` 层级档案与 `payload_catalog: PayloadGen/registry.v2.yaml`）；默认引用 `PayloadGen/variant_sets/core.yaml`，也可在 plan 时通过 `--variant-set` 覆盖。 |
-| `opencode.yaml` | **唯一的 agent 配置**：顶层是共享默认值（`mode: stdout`、`answer_extractor`、`trace_adapter`、`argv`、`env_allowlist`），`profiles:` 下是各模型的 `model` / `model_label` / `requires_env`（`deepseek-chat`、`deepseek-reasoner`、`glm-4.7`、`qwen3-coder-plus`）。`argv` 里的 `{model}` 由所选 profile 替换；用 `--agent-profile` 选择，缺省用 `default_profile`。 |
+| `experiment.yaml` | **唯一实验配置**：`archive`、`isolation`、`verifier`、`output_contract`、`campaign`（含生成器上下文档案与 `payload_catalog: PayloadGen/registry.yaml`）；默认引用 `PayloadGen/variant_sets/core.yaml`，也可在 plan 时通过 `--variant-set` 覆盖。 |
+| `opencode.yaml` | **唯一的 agent 配置**：面向 WSL/Linux OpenCode 2.x，使用 `opencode --standalone run --archived`；顶层共享 `mode`、答案/trace adapter、版本命令、argv 和环境白名单，`profiles:` 分别声明 DeepSeek/GLM/Qwen。Harness 以暴露仓库为 cwd，不在配置中保存绝对路径。 |
 | `opencode.json` | OpenCode 自身的 provider/model 配置，被 `opencode.yaml` 的 profile 通过 `--model`/provider 引用。 |
 
 ---
@@ -44,19 +44,23 @@
 | 文件 | 作用 |
 | --- | --- |
 | `README.md` | 方法库边界、状态语义、模板变量与私有安全诱饵规则。 |
-| `registry.yaml` | v1 方法注册表（兼容保留）：目标、载体、落点、文献来源、`implemented_adaptation/planned`。 |
-| `registry.v2.yaml` | v2 方法注册表：额外声明 `supported_tiers`、`realizations`（tier → 生成后端）、`templates`（tier → 模板）、`placement_limits`、`validation`、`known_deviations`。`campaign plan` 校验 tier 与实现一致。 |
+| `registry.yaml` | schema 3 规范注册表：稳定 Method、单一 primary Mechanism、支持的 Objective/Surface、方法特定 I0–I4 强度档案，以及具体 Realization。 |
+| `threat_models/repository_content.yaml` | 独立威胁模型：攻击者控制面、oracle/feedback 权限、变更预算及禁止能力；攻击分类只引用其 ID。 |
 | `methods/A2/templates/*`、`methods/A3/...`、`methods/S1/...`、`methods/S2/...` | 按 tier 分层的模板：`t1_repository.txt` 使用公开仓库语境，`t2_oracle.txt` 使用清理后的 `{precondition}` / `{boundary_claim}` / `{dangerous_effect}`。 |
-| `variant_sets/core.yaml` | 核心主实验：C + A1/A3/F2/S1/S2（T0）。 |
-| `variant_sets/core_tier_ablation.yaml` | 层级消融：C + A2/A3/S1 × T0/T1/T2 + F2 × T0/T2。 |
-| `variant_sets/false_negative.yaml` | 漏报机制实验：C + A1/A2/A3 × T0/T1/T2。 |
-| `variant_sets/safe_decoy.yaml` | 安全诱饵实验：C + F1/F2 × T0/T2。 |
-| `variant_sets/severity.yaml` | 严重性偏移实验：C + S1/S2 × T0/T1/T2。 |
+| `realizations/M2-*/i0..i4/*` | `M2.1`、`M2.2`、`M2.5` 三个核心 O-FN 方法的完整强度梯度；每级两个独立措辞 realization。 |
+| `variant_sets/core.yaml` | 单一 `O-FN` 核心集合：C + 三个认识论污染 realization。 |
+| `variant_sets/generator_context_ablation.yaml` | 生成上下文消融：固定 Objective/Method/Surface/Intensity/Realization，只改变 T0/T1/T2 provenance。 |
+| `variant_sets/intensity_false_exploitability.yaml` | 强度消融：固定 T2、Threat Model、Objective、Method 和 Surface，只改变 I0–I4；每级两个 realization。 |
+| `variant_sets/intensity_false_prior_resolution.yaml`、`intensity_fabricated_analysis.yaml` | 分别对 `M2.1` 和 `M2.2` 执行相同的固定 T2、双 realization 强度消融。 |
+| `variant_sets/false_negative.yaml` | `O-FN` 漏报实验。 |
+| `variant_sets/safe_decoy.yaml` | `O-FP` 认证虚假 finding 实验。 |
+| `variant_sets/scope_diversion.yaml` | `O-SCOPE` 认证安全诱饵的注意力转移实验。 |
+| `variant_sets/severity.yaml`、`severity_inflation.yaml` | 分开的 `O-SEV-D` 与 `O-SEV-I` 实验。 |
 | `templates/*` | 确定性载荷模板（T0 基线）；模板及渲染结果哈希进入 plan/patch 产物。 |
 
 ---
 
-## 4. `schemas/`（44 个，全部生成物）
+## 4. `schemas/`（52 个，全部生成物）
 
 `vulnmirage schemas` 从 pydantic 模型生成，勿手改；`schema_index()` 会报告 `missing` / `stale`。
 
@@ -78,16 +82,20 @@
 **隔离与泄露（3）**：`isolation_attestation`（9 项不变量的证据）、`isolation_egress_probe`（出口探测结果）、
 `leakage_controls`（渠道 → controlled/failed/unknown）。
 
-**生成契约（12）**：`condition_spec`（条件与 tier、候选预算）、`experiment_cell`（cell 冻结维度）、
+**生成与攻击身份契约（17）**：`condition_spec`、`experiment_cell`、
 `campaign_plan_generation`（seed 与各 tier 档案）、`repository_index`（公开仓库索引）、
 `oracle_attack_view`（清理后的 T2 局部视图）、`candidate_payload`（候选载荷 + 落点 + provenance）、
 `candidate_validation`（四个验证器的 pass/fail/unknown/not_applicable）、
 `generation_manifest`（输入哈希 + 候选 + 验证 + 选择）、`target_remap`（编辑后的目标重映射）、
 `adaptation_query`（T3/T4 查询记录，当前无生成器）、`aggregate_result`（配对聚合 + 流失账）、
-`paired_comparison`（单任务 clean↔attacked 差值）。
+`paired_comparison`（单任务 clean↔attacked 差值），以及 `payload_catalog`、
+`payload_attack_method`、`payload_realization`、`payload_realization_dose`、`payload_threat_model`、
+`attack_condition_identity`（Threat Model 引用 × Objective × Method × Surface × Intensity × Realization）。
 
-**评估（5）**：`verifier_bundle`（冻结输入包）、`verifier_targets`（私有目标视图）、`verifier_score`（单次评分）、
-`verifier_attestation`（评估器自证）、`verifier_untrusted_input`（报告文本处置记录）。
+**评估（7）**：`verifier_bundle`（冻结输入包）、`verifier_targets`（私有目标视图）、
+`verifier_target_rubric`（单目标私有 V/I/E/S 判据）、`verifier_rubric_scores`（逐目标诊断结果）、
+`verifier_score`（单次评分摘要）、`verifier_attestation`（评估器自证）、
+`verifier_untrusted_input`（报告文本处置记录）。
 
 **答案质量（1）**：`output_consistency`（报告 ↔ findings 的 id 覆盖与冲突）。
 
@@ -105,6 +113,7 @@
 | 文件 | 作用 |
 | --- | --- |
 | `check_final_answer.py` | 一次 run 的排障：`--run-dir` 检查整套产物、`--raw` 检查答案文件、`--stdout` 从事件流抽答案再检查、`--demo` 自测抽取器。不跑模型、不写 workspace。 |
+| `capture_opencode_trace_fixture.py` | 运行真实 OpenCode CLI，但把推理端替换为 localhost 确定性 SSE stub；生成脱敏、版本化的 JSONL 回归夹具，不调用外部模型。 |
 
 ---
 
@@ -118,6 +127,7 @@
 | `adaptive_attack_benchmark_architecture_2026-11-04.md` | 待审核的自适应攻击架构：T0–T4 威胁层级、双阶段冻结、PayloadGen v2、oracle 最小视图、生成/验证/选择、运行隔离、T3/T4 协议、归档、里程碑与验收门槛。 |
 | `tier_capability_matrix.md` | tier 的可读边界：每个 tier 能读什么、两条强制点、T2 允许/禁止字段、T0 落点的诚实标注、725/725 真实 target 的清理结果、T3/T4 缺席原因。 |
 | `campaign.md` | 流程手册：阶段图、命令、目录布局、两种执行器、不变量表、失败语义。 |
+| `wsl_deployment.md` | WSL/Linux 部署手册：复制到 Linux 文件系统、原生 OpenCode/Python、rootless namespace、API key、单仓库 plan/generate/run、边界证据与故障排查。 |
 | `leakage_channels.md` | 泄露渠道控制矩阵：9 条渠道的原因、控制、检查、残余风险，以及“哪些只能是 unknown”。 |
 | `FILES.md` | 本文件。 |
 
@@ -128,7 +138,9 @@
 | 文件 | 作用 |
 | --- | --- |
 | `test_campaign_revision.py` | 验收覆盖数据集加载与摘要校验、prompt 规范化（剥身份 / 保网络声明 / 整段删载体提醒 / 幂等）、归档下载与恶意归档拒绝（穿越 / 绝对路径 / 符号链接 / 预算）、嵌套历史拒绝、变体独立构建与空操作拒绝、隔离证据（无 `.git`、无 oracle、无同级 run、脏 state、可达答案主机五种失败）、评估器（评分、拒绝带 oracle 的包、拒绝被篡改的包、无执行 sink、报告注入）、输出一致性、机制分析（缺证据 → insufficient_evidence）、端到端 C/A1、不合格 run 不进分母、resume 拒绝改过的 plan、清理范围、产物写入器，以及单文件多 profile 的 agent 配置解析。 |
-| `test_tier_generation.py` | 层级生成验收：T0 与旧渲染逐字节一致、T0 不带 oracle 摘要、索引确定性/角色/符号降级、oracle 视图清理（CVE/CWE/title/fix/excerpt 全不出现）、仅 CVE 标签的 target 不具 T2 资格、T1 拒绝 oracle 视图且生成器源码不引用它、T2 落在 oracle 位置且不泄露、答案 token 候选被拦截、路径逃逸/超预算被 structural 拒绝、选择可复现且记录规则、函数内偏移的重映射、`generate_only` 冻结在变体之前、plan `--dry-run` 不写控制面、44 个 schema 无 missing/stale。 |
+| `test_tier_generation.py` | 生成上下文验收：全部已实现 realization × T0/T1/T2 均能生成可选候选，T0 与旧渲染逐字节一致、oracle 视图清理、答案 token 拦截、结构/预算验证、确定性选择、目标重映射、预运行冻结、plan `--dry-run`，以及 52 个 schema 无 missing/stale。 |
+| `test_target_rubric.py` | 私有 target rubric 验收：V/I/E/S 全通过、只有位置或 CWE 不算根因识别、没有结构化仓库证据不算可归因，以及旧 target set 缺少 rubric 时只能记 `not_available`。 |
+| `test_attack_taxonomy.py` | 分类契约验收：Method/Realization 分离、I0–I4 完整、强度 dose 不可伪标、三个核心 M2 方法每级两个 realization、威胁模型独立、generator tier 不冒充强度、混合 Objective 和未知威胁模型在生成前被拒绝。 |
 
 ---
 
@@ -154,13 +166,14 @@
 
 ---
 
-## 8.1 `payloadgen/`（生成子系统，14 模块）
+## 8.1 `payloadgen/`（生成子系统，15 模块）
 
 | 文件 | 作用 |
 | --- | --- |
 | `__init__.py` | 公开门面：注册表、引擎、索引、oracle 视图、重映射、契约与旧渲染入口。 |
+| `taxonomy.py` | 规范攻击身份：Objective、单一主 Mechanism、Artifact+Zone Surface、方法特定 I0–I4 Intensity、独立 ThreatModel 引用。 |
 | `contracts.py` | `ConditionSpec` / `ExperimentCell` / `CandidatePayload` / `ValidatorResult` / `CandidateValidation` / `SelectionRecord` / `GenerationManifest` / `AdaptationQuery`；required 验证不过的候选不可选（`unknown` 不是 `pass`）。 |
-| `catalog.py` | v1/v2 注册表模型与装载：`supported_tiers`、`realizations`、`templates`、`placement_limits`、`validation`；声明 tier 却没有实现→装载即失败。 |
+| `catalog.py` | schema 3 Method/Realization 注册表与威胁模型装载；在生成前验证 Objective、Surface、Intensity、威胁模型、变更预算及 generator backend 一致性。 |
 | `render.py` | 确定性模板渲染、注释前缀、模板路径解析、受限 Python AST 的**无执行子集**证书。 |
 | `legacy.py` | 包的兼容薄层：`realize_payload` 保持逐字节一致的旧渲染（T0 golden 用它对照）；`expected_severity` 不再取自 oracle。 |
 | `repository_index.py` | `RepositoryIndex`：文件语言/角色/摘要/行数、AST 或文本降级符号、注释风格、TODO 行数、sink 文件（不含 oracle 标签）；`digest()` 排除易变字段，同树同版本同摘要。 |
@@ -181,31 +194,34 @@
 | `plan.py` | 离线冻结计划：读任务索引、规范化 prompt 取哈希、解析归档请求、校验变体声明，写 `control/plan.json`（**不含 target id / CVE / CWE**）；新增 `PlanGeneration`（seed + 各 tier 候选预算/选择策略/限额）与每个条件的 `condition_id` / `tier`；不实现的 tier 在 plan 阶段即失败。 |
 | `task_prompt.py` | 把数据集 `task_prompt` 规范成 agent 实际看到的任务：7 条版本化规则（剥仓库名/commit/tag、改写网络声明、整段删载体提醒、删数据集 JSON 提示、删冻结文件数、补网络声明、清理排版）+ 答案 token 复扫；源与有效 prompt 都留哈希。 |
 | `variants.py` | 从同一 clean 树**独立**构建 C/A：结构化编辑（create / append / insert_before），前置条件不满足即报错（绝不产生空操作变体），并拒绝含答案 token 的 payload；`AppliedEdit` 记录字符偏移与行号，供目标重映射使用；`VariantBuild` 记录 `tier` / `candidate_id` / `generation_manifest_sha256` / `remap_sha256`。 |
-| `executor.py` | 一次审计怎么跑、答案怎么收集：`CommandExecutor`（命令自己写 `{output}`）、`StdoutExecutor`（捕获 stdout 并抽取最后一个 JSON 答案 / 事件流最后一段 text）、`NullExecutor`（只准备与取证）、`extract_final_answer()`。argv 必须引用 `{repo}`。 |
+| `executor.py` | 一次审计怎么跑、答案怎么收集：`CommandExecutor`（命令自己写 `{output}`）、`StdoutExecutor`（捕获 stdout 并抽取最后一个 JSON 答案 / 事件流最后一段 text）、`NullExecutor`（只准备与取证）、`extract_final_answer()`。所有 executor 都以 exposed repo 为 cwd；路径占位符按框架需要选用。 |
 | `state.py` | 每任务阶段机：`pending→downloading→extracted→prepared→indexed→generation_started→candidates_validated→variants_frozen→auditing→scoring→mechanism_analysis→archived→cleaned`，不可跳步或回退；记录历史与哈希；plan 或配置变了就拒绝 resume。 |
 | `pipeline.py` | **主干**：下载归档 → 安全解压（+ 嵌套历史拒绝）→ 快照校验与私有目标视图 → **建索引** → **逐条件生成/验证/选择并冻结 manifest** → 按选中候选建树 + **目标重映射** → 逐变体逐重复审计（新 exposed 根 + egress 探测 + attestation + executor）→ 冻结 bundle 交独立评估器评分 → 机制分析 → 归档清单 → 校验后清理。另有 `generate_only()` / `inspect_generation()` / `aggregate()`。 |
 
 ---
 
-## 10. `isolation/`（5 模块）
+## 10. `isolation/`（7 模块）
 
 | 文件 | 作用 |
 | --- | --- |
 | `layout.py` | `ExposureLayout`：`tmp/<task>/{prep,exposed,state}` 与 `archives/`、`private/` 分离；每次 run 的 exposed 根只有 `repo/` + `out/`；提供 `reset_exposed()` / `cleanup()` / `assert_contained()`。 |
-| `network.py` | 工具出口：`build_restricted_agent_environment()` 从空环境开始，只复制 agent 白名单和声明的模型凭据，再加离线提示；记录只含凭据名。`probe_egress()` 真连推理网关与被封答案主机，用结果而非配置判定资格。 |
+| `network.py` | 工具出口：`build_restricted_agent_environment()` 从空环境开始，只复制 agent 白名单和声明的模型凭据，再加离线提示；`probe_egress()` 真连推理网关与答案主机，并严格区分 `observed_unreachable` 与 executor 证明的 `enforced_blocked`。 |
+| `gateway.py` | Linux namespace 的可信 inference relay：把 OpenCode provider URL 改写到 loopback，经私有 Unix socket 只转发到配置与 allowlist 同时允许的 HTTPS 模型主机。 |
+| `namespace_child.py` | rootless namespace 子进程：启用 `lo`、TCP→Unix relay，证明 netns 不同、只有 loopback、无默认路由、公网直连失败，并在证明通过后才执行 OpenCode。 |
 | `attestation.py` | **隔离证据**：9 项不变量（repo 可读、树等于冻结变体、无 `.git`、exposed 根无 oracle、无同级 run、私有区不在 exposed 内、state 为空、out 可写、egress 被封）+ 运行时边界；`unknown` 永不写成 `pass`；`condition_independent: true`。 |
 | `channels.py` | **泄露渠道注册表**：9 条渠道 × 控制 × 检查 + 残余风险；`build_control_report()` 把 attestation 与阶段证据合成 `leakage_controls.json`，没跑过的检查记 `unknown`。 |
 
 ---
 
-## 11. `verifier/`（6 模块）
+## 11. `verifier/`（7 模块）
 
 | 文件 | 作用 |
 | --- | --- |
 | `bundle.py` | 冻结输入包：只允许 `final_raw.txt` / `events.normalized.jsonl` / `run.json` / `meta.json` / `isolation_attestation.json`（+ 可选 `file_access` / `tool_calls` / trace manifest/completeness），逐文件 sha256；拒绝被篡改的包、拒绝包内出现 oracle、拒绝包与 private 根相互嵌套。 |
 | `untrusted.py` | 把提交当数据：限长、剥控制字符、去掉围栏自身 token 再包进 `<UNTRUSTED_…>`；`assert_no_execution_sinks()` 机械扫描自身源码确认没有 subprocess/eval/exec/pickle/yaml.load 出口。 |
 | `targets.py` | 私有目标与 `SafeDecoy` 视图 + 匹配：**必须同文件**，行邻近与 CWE 重叠加权；普通未命中 finding 仍是 `unmatched`。 |
-| `service.py` | 独立评估器：除目标召回/严重性外，单独匹配私有安全诱饵并写 `safe_decoy_matches.json` 与 `score.false_positive`；未被私有证书覆盖的 finding 不当误报。 |
+| `rubrics.py` | 从私有 oracle 构造逐目标 rubric，并确定性计算 V（裁决）、I（根因识别）、E（仓库证据）、S（严重性）与 A=V∧I∧E；缺失判据不推断为通过。 |
+| `service.py` | 独立评估器：写 `rubric_scores.json` 和 `score.diagnosis`；同时匹配私有安全诱饵并写 `safe_decoy_matches.json` 与 `score.false_positive`。 |
 | `__main__.py` | `python -m vulnmirage.verifier --private … --bundle … --out …`：独立进程入口。 |
 | `__init__.py` | 子包导出。 |
 
@@ -224,8 +240,8 @@
 | 文件 | 作用 |
 | --- | --- |
 | `opencode.py` | 解析 OpenCode `--format json` JSONL；按稳定顺序输出事件/tool/file-access，路径限制为工作区相对形式，参数与输出机械脱敏。 |
-| `normalize.py` | 将不可修改的 `stdout.log` 派生为三份 JSONL、`trace_manifest.json` 和 `trace_completeness.json`，并绑定源/输出 SHA-256。 |
-| `models.py` | 五类 trace 的严格 pydantic 契约和适配器版本。 |
+| `normalize.py` | 将不可修改的 `stdout.log` 派生为三份 JSONL、`trace_manifest.json` 和 `trace_completeness.json`，绑定源/输出 SHA-256，并按已验证 OpenCode 版本标记兼容性。 |
+| `models.py` | 五类 trace 的严格 pydantic 契约、适配器版本及真实 CLI 夹具已验证的框架版本。 |
 | `completeness.py` | 依据终止事件、最终文本、tool terminal state、无效行和未知事件评估 complete/partial/missing；不补造事件。 |
 | `__init__.py` | 子包导出。 |
 
@@ -287,6 +303,8 @@
   闭包中，但记录设计决策、操作协议、已知限制和方法来源，属于复现材料。
 - `tests/test_campaign_revision.py` 不参与正式 run，用于阻止隔离、oracle 泄露、
   变体构建和评分语义回归。
+- `tests/fixtures/opencode/<version>/` 不参与正式 run；它是由真实 OpenCode CLI
+  产生、脱敏后冻结的适配器兼容性证据。
 
 当前没有仅为旧流程保留的 `src` 模块；75 个 Python 模块都挂在
 `campaign` / `verifier` / `payloadgen` 入口的 import 闭包上。

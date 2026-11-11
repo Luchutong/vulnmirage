@@ -1,0 +1,18 @@
+{
+  "capture_kind": "real_cli_local_deterministic_stub",
+  "captured_at": "2026-11-11T16:07:13Z",
+  "event_types": [
+    "step_start",
+    "tool_use",
+    "step_finish",
+    "step_start",
+    "text",
+    "step_finish"
+  ],
+  "external_model_calls": 0,
+  "framework": "opencode",
+  "framework_version": "2.2.7",
+  "sanitized_dynamic_fields": true,
+  "schema_version": "1.0",
+  "source_sha256": "b1736d29120875de75e1f73a4b6b63c27f7077fc816a15c06cb51f5d07e6d952"
+}

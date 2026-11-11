@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from ..hashing import sha256_text, utc_now_iso
 from ..tiers import Tier
@@ -35,19 +35,33 @@ class ConditionSpec(BaseModel):
 
     condition_id: str
     kind: Literal["clean", "attacked"] = "attacked"
+    taxonomy_version: str | None = None
+    threat_model_id: str | None = None
+    objective: str = "none"
     method_id: str | None = None
-    tier: Tier = "T0"
+    primary_mechanism: str | None = None
+    surface: dict[str, str] | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
+    realization_id: str | None = None
+    generator_tier: Tier = Field(
+        default="T0", validation_alias=AliasChoices("generator_tier", "tier")
+    )
     generator_profile: str = "default"
     candidate_budget: int = Field(default=1, ge=1, le=64)
     selection_policy: str = "semantic_fit_then_deterministic_tiebreak"
     victim_feedback: bool = False
 
     @model_validator(mode="after")
-    def _feedback_only_at_t4(self) -> "ConditionSpec":
+    def _feedback_only_at_t4(self) -> ConditionSpec:
         # Design §17.2: victim feedback belongs to T4's separate protocol.
-        if self.victim_feedback and self.tier != "T4":
+        if self.victim_feedback and self.generator_tier != "T4":
             raise ValueError("victim_feedback is only defined for tier T4")
         return self
+
+    @property
+    def tier(self) -> Tier:
+        return self.generator_tier
 
 
 class ExperimentCell(BaseModel):
@@ -59,13 +73,28 @@ class ExperimentCell(BaseModel):
     task_id: str
     target_id: str | None = None
     condition_id: str
-    tier: Tier = "T0"
+    taxonomy_version: str | None = None
+    threat_model_id: str | None = None
+    objective: str = "none"
+    method_id: str | None = None
+    primary_mechanism: str | None = None
+    surface: dict[str, str] | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
+    realization_id: str | None = None
+    generator_tier: Tier = Field(
+        default="T0", validation_alias=AliasChoices("generator_tier", "tier")
+    )
     victim_model: str | None = None
     scaffold_version: str = "unknown"
     prompt_version: str = "unknown"
     audit_budget_seconds: int = 0
     repetition: int = 1
     run_order_seed: int = 0
+
+    @property
+    def tier(self) -> Tier:
+        return self.generator_tier
 
 
 class CandidatePayload(BaseModel):
@@ -76,7 +105,13 @@ class CandidatePayload(BaseModel):
     candidate_id: str
     variant_id: str
     method_id: str
-    tier: Tier
+    realization_id: str | None = None
+    objective: str = "none"
+    primary_mechanism: str | None = None
+    surface: dict[str, str] | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
+    generator_tier: Tier = Field(validation_alias=AliasChoices("generator_tier", "tier"))
     seed: int = 0
     generator: str
     carrier: str
@@ -97,7 +132,11 @@ class CandidatePayload(BaseModel):
     estimated_tokens: int = 0
     provenance: dict[str, str] = Field(default_factory=dict)
 
-    def finalized(self) -> "CandidatePayload":
+    @property
+    def tier(self) -> Tier:
+        return self.generator_tier
+
+    def finalized(self) -> CandidatePayload:
         text = self.rendered_text
         lines = max(1, text.count("\n") + (0 if text.endswith("\n") else 1))
         return self.model_copy(
@@ -161,8 +200,16 @@ class GenerationManifest(BaseModel):
     snapshot_id: str
     variant_id: str
     condition_id: str
+    taxonomy_version: str | None = None
+    threat_model_id: str | None = None
+    objective: str = "none"
     method_id: str
-    tier: Tier
+    primary_mechanism: str | None = None
+    surface: dict[str, str] | None = None
+    intensity: str | None = None
+    dose: dict[str, object] | None = None
+    realization_id: str | None = None
+    generator_tier: Tier = Field(validation_alias=AliasChoices("generator_tier", "tier"))
     seed: int
     generator_version: str
     clean_tree_sha256: str
@@ -177,6 +224,10 @@ class GenerationManifest(BaseModel):
     remap_sha256: str | None = None
     generated_at: str = Field(default_factory=utc_now_iso)
     notes: list[str] = Field(default_factory=list)
+
+    @property
+    def tier(self) -> Tier:
+        return self.generator_tier
 
     def validation_for(self, candidate_id: str) -> CandidateValidation | None:
         for item in self.validations:

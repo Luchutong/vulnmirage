@@ -70,20 +70,16 @@
           "title": "Forbidden Tokens",
           "type": "array"
         },
-        "goal": {
-          "default": "none",
+        "generator_tier": {
+          "default": "T0",
           "enum": [
-            "false_negative",
-            "false_positive",
-            "severity_shift",
-            "severity_downgrade",
-            "severity_inflation",
-            "verification_diversion",
-            "evidence_weakening",
-            "scope_shift",
-            "none"
+            "T0",
+            "T1",
+            "T2",
+            "T3",
+            "T4"
           ],
-          "title": "Goal",
+          "title": "Generator Tier",
           "type": "string"
         },
         "kind": {
@@ -93,16 +89,6 @@
             "attack"
           ],
           "title": "Kind",
-          "type": "string"
-        },
-        "knowledge": {
-          "default": "public_context",
-          "enum": [
-            "public_context",
-            "target_known",
-            "oracle_guided"
-          ],
-          "title": "Knowledge",
           "type": "string"
         },
         "method_id": {
@@ -117,7 +103,22 @@
           "default": null,
           "title": "Method Id"
         },
-        "payload_id": {
+        "objective": {
+          "default": "none",
+          "enum": [
+            "O-FN",
+            "O-FP",
+            "O-SEV-D",
+            "O-SEV-I",
+            "O-EV",
+            "O-SCOPE",
+            "O-AVAIL",
+            "none"
+          ],
+          "title": "Objective",
+          "type": "string"
+        },
+        "realization_id": {
           "anyOf": [
             {
               "type": "string"
@@ -127,19 +128,7 @@
             }
           ],
           "default": null,
-          "title": "Payload Id"
-        },
-        "tier": {
-          "default": "T0",
-          "enum": [
-            "T0",
-            "T1",
-            "T2",
-            "T3",
-            "T4"
-          ],
-          "title": "Tier",
-          "type": "string"
+          "title": "Realization Id"
         },
         "variant_id": {
           "title": "Variant Id",
@@ -157,14 +146,31 @@
   "additionalProperties": false,
   "description": "One pre-registered group of conditions for a single research question.",
   "properties": {
+    "primary_objective": {
+      "pattern": "^O-(FN|FP|SEV-D|SEV-I|EV|SCOPE|AVAIL)$",
+      "title": "Primary Objective",
+      "type": "string"
+    },
     "research_question": {
       "minLength": 1,
       "title": "Research Question",
       "type": "string"
     },
     "schema_version": {
-      "default": "1.0",
+      "const": "2.0",
+      "default": "2.0",
       "title": "Schema Version",
+      "type": "string"
+    },
+    "taxonomy_version": {
+      "const": "vm-atk-1.0",
+      "default": "vm-atk-1.0",
+      "title": "Taxonomy Version",
+      "type": "string"
+    },
+    "threat_model_id": {
+      "minLength": 1,
+      "title": "Threat Model Id",
       "type": "string"
     },
     "variant_set_id": {
@@ -182,6 +188,8 @@
     }
   },
   "required": [
+    "threat_model_id",
+    "primary_objective",
     "variant_set_id",
     "research_question",
     "variants"

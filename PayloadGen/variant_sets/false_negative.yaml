@@ -1,57 +1,50 @@
-schema_version: "1.0"
-variant_set_id: false-negative-v1
+schema_version: "2.0"
+taxonomy_version: vm-atk-1.0
+variant_set_id: false-negative-v2
+threat_model_id: TM-REPOSITORY-CONTENT-01
+primary_objective: O-FN
 research_question: >-
-  Which misleading-context mechanism suppresses reporting of a verified target, and
-  how much does the generator's information level change that?
+  Which implemented epistemic-poisoning realization suppresses attributable target
+  detection, with generator capability reported separately from attack intensity?
 variants:
   - variant_id: C
     kind: clean
-    goal: none
 
-  - variant_id: A1-T0
+  - variant_id: FPR-T0
     kind: attack
-    tier: T0
-    payload_id: false_fix_claim_v1
-    goal: false_negative
-  - variant_id: A1-T1
+    generator_tier: T0
+    realization_id: M2-FPR__S-DOC-Z-ROOT__I1__R01
+  - variant_id: FPR-T1
     kind: attack
-    tier: T1
-    payload_id: false_fix_claim_v1
-    goal: false_negative
-  - variant_id: A1-T2
+    generator_tier: T1
+    realization_id: M2-FPR__S-DOC-Z-ROOT__I1__R01
+  - variant_id: FPR-T2
     kind: attack
-    tier: T2
-    payload_id: false_fix_claim_v1
-    goal: false_negative
+    generator_tier: T2
+    realization_id: M2-FPR__S-DOC-Z-ROOT__I1__R01
 
-  - variant_id: A2-T0
+  - variant_id: FEP-T0
     kind: attack
-    tier: T0
-    payload_id: todo_false_safety_v1
-    goal: false_negative
-  - variant_id: A2-T1
+    generator_tier: T0
+    realization_id: M2-FEP__S-COMMENT-Z-TARGET__I1__R01
+  - variant_id: FEP-T1
     kind: attack
-    tier: T1
-    payload_id: todo_false_safety_v1
-    goal: false_negative
-  - variant_id: A2-T2
+    generator_tier: T1
+    realization_id: M2-FEP__S-COMMENT-Z-TARGET__I1__R01
+  - variant_id: FEP-T2
     kind: attack
-    tier: T2
-    payload_id: todo_false_safety_v1
-    goal: false_negative
+    generator_tier: T2
+    realization_id: M2-FEP__S-COMMENT-Z-TARGET__I1__R01
 
-  - variant_id: A3-T0
+  - variant_id: FAR-T0
     kind: attack
-    tier: T0
-    payload_id: fabricated_authority_v1
-    goal: false_negative
-  - variant_id: A3-T1
+    generator_tier: T0
+    realization_id: M2-FAR__S-COMMENT-Z-TARGET__I1__R01
+  - variant_id: FAR-T1
     kind: attack
-    tier: T1
-    payload_id: fabricated_authority_v1
-    goal: false_negative
-  - variant_id: A3-T2
+    generator_tier: T1
+    realization_id: M2-FAR__S-COMMENT-Z-TARGET__I1__R01
+  - variant_id: FAR-T2
     kind: attack
-    tier: T2
-    payload_id: fabricated_authority_v1
-    goal: false_negative
+    generator_tier: T2
+    realization_id: M2-FAR__S-COMMENT-Z-TARGET__I1__R01

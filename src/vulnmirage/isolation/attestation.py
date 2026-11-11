@@ -268,6 +268,35 @@ def run_attestation(
                 "answer-serving hosts answered a live connection from this environment",
                 ", ".join(egress.reachable_answer_hosts),
             )
+        if require_egress_pass and not egress.enforcement_verified:
+            return (
+                "fail",
+                "answer hosts were not reached, but no enforceable agent network "
+                "boundary was verified",
+                f"origin={egress.probe_origin} enforcement={egress.enforcement}",
+            )
+        if require_egress_pass and not egress.blocked_targets:
+            return (
+                "fail",
+                "no answer-serving host was probed inside the agent boundary",
+                f"origin={egress.probe_origin}",
+            )
+        if (
+            require_egress_pass
+            and egress.gateway_targets
+            and not egress.gateway_reachable
+        ):
+            return (
+                "fail",
+                "the inference gateway was not reachable from the agent boundary",
+                ", ".join(item.host for item in egress.gateway_targets),
+            )
+        if not egress.enforcement_verified:
+            return (
+                "unknown",
+                "probes observed answer hosts as unreachable without an enforced boundary",
+                f"origin={egress.probe_origin} enforcement={egress.enforcement}",
+            )
         reachable = [item.host for item in egress.blocked_targets if not item.connected]
         return (
             "pass",

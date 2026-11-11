@@ -38,10 +38,11 @@ from ..verifier.bundle import (
     assert_bundle_outside_private,
     verify_bundle,
 )
+from ..verifier.rubrics import score_target_rubrics
 from ..verifier.targets import TargetSet, finding_views, match_targets
 from ..verifier.untrusted import assert_no_execution_sinks, sanitize_untrusted
 
-VERIFIER_SCHEMA_VERSION = "1.0"
+VERIFIER_SCHEMA_VERSION = "1.1"
 
 
 class VerifierAttestation(BaseModel):
@@ -70,6 +71,7 @@ class RunScore(BaseModel):
     output: dict[str, object] = Field(default_factory=dict)
     detection: dict[str, object] = Field(default_factory=dict)
     false_positive: dict[str, object] = Field(default_factory=dict)
+    diagnosis: dict[str, object] = Field(default_factory=dict)
     severity: dict[str, object] = Field(default_factory=dict)
     trace: dict[str, object] = Field(default_factory=dict)
     scored: bool = False
@@ -172,7 +174,12 @@ def evaluate_bundle(
     if run_json.is_file():
         try:
             run_payload = json.loads(run_json.read_text(encoding="utf-8"))
-            variant_kind = str(run_payload.get("variant_kind") or run_payload.get("tier") or "unknown")
+            variant_kind = str(
+                run_payload.get("variant_kind")
+                or run_payload.get("generator_tier")
+                or run_payload.get("tier")
+                or "unknown"
+            )
             variant_set_id = str(run_payload.get("variant_set_id") or "inline")
         except json.JSONDecodeError:  # pragma: no cover - defensive
             variant_kind = "unknown"
@@ -191,6 +198,26 @@ def evaluate_bundle(
         "private_targets_present",
         True,
         f"{len(target_set.targets)} target(s) loaded from the private root",
+    )
+    target_ids = {item.target_id for item in target_set.targets}
+    rubric_ids = {item.target_id for item in target_set.rubrics}
+    if rubric_ids and rubric_ids != target_ids:
+        raise VerifierError(
+            "private target rubrics do not cover exactly the scored targets",
+            details={
+                "missing": sorted(target_ids - rubric_ids),
+                "extra": sorted(rubric_ids - target_ids),
+            },
+        )
+    _check(
+        checks,
+        "private_rubrics_consistent",
+        True,
+        (
+            f"{len(rubric_ids)} target rubric(s) cover the scored targets"
+            if rubric_ids
+            else "legacy target set has no rubrics; diagnosis will be unknown"
+        ),
     )
 
     from ..evaluation.parser import OutputParseError, output_consistency, parse_agent_output
@@ -230,6 +257,15 @@ def evaluate_bundle(
         line_tolerance=settings.line_tolerance,
     )
     atomic_write_json(output_dir / "matches.json", report)
+
+    rubric_report = score_target_rubrics(
+        target_set.rubrics,
+        list(parsed.findings) if parsed is not None else [],
+        report,
+        task_id=task_id,
+        line_tolerance=settings.line_tolerance,
+    )
+    atomic_write_json(output_dir / "rubric_scores.json", rubric_report)
 
     decoy_report = match_targets(
         [item.as_target() for item in target_set.safe_decoys],
@@ -321,6 +357,12 @@ def evaluate_bundle(
                 "other unmatched findings remain unadjudicated"
             ),
         },
+        diagnosis={
+            "status": rubric_report.status,
+            **rubric_report.summary,
+            "artifact": "rubric_scores.json",
+            "definition": "attributable = verdict AND identification AND evidence",
+        },
         severity={
             "comparable": len(severity_rows),
             "rows": severity_rows,
@@ -375,6 +417,7 @@ def evaluate_bundle(
         "run_id": run_id,
         "scored": scored,
         "detected": len(detected),
+        "attributable": rubric_report.summary.get("attributable_pass", 0),
         "accepted_safe_decoys": len(accepted_decoys),
         "targets": total,
         "consistency_status": consistency.status,

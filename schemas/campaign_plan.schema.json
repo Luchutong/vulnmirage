@@ -365,6 +365,19 @@
           "title": "Condition Id",
           "type": "string"
         },
+        "dose": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dose"
+        },
         "edit_count": {
           "default": 0,
           "title": "Edit Count",
@@ -382,18 +395,25 @@
           "title": "Generator Profile",
           "type": "string"
         },
-        "goal": {
-          "default": "none",
-          "title": "Goal",
+        "generator_tier": {
+          "default": "T0",
+          "title": "Generator Tier",
           "type": "string"
+        },
+        "intensity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intensity"
         },
         "kind": {
           "title": "Kind",
-          "type": "string"
-        },
-        "knowledge": {
-          "default": "public_context",
-          "title": "Knowledge",
           "type": "string"
         },
         "method_id": {
@@ -408,7 +428,12 @@
           "default": null,
           "title": "Method Id"
         },
-        "payload_id": {
+        "objective": {
+          "default": "none",
+          "title": "Objective",
+          "type": "string"
+        },
+        "primary_mechanism": {
           "anyOf": [
             {
               "type": "string"
@@ -418,7 +443,19 @@
             }
           ],
           "default": null,
-          "title": "Payload Id"
+          "title": "Primary Mechanism"
+        },
+        "realization_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Realization Id"
         },
         "reproduction_status": {
           "anyOf": [
@@ -449,6 +486,21 @@
           "default": null,
           "title": "Source Url"
         },
+        "surface": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Surface"
+        },
         "target_ref": {
           "anyOf": [
             {
@@ -461,10 +513,29 @@
           "default": null,
           "title": "Target Ref"
         },
-        "tier": {
-          "default": "T0",
-          "title": "Tier",
-          "type": "string"
+        "taxonomy_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Taxonomy Version"
+        },
+        "threat_model_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threat Model Id"
         },
         "variant_id": {
           "title": "Variant Id",
@@ -545,13 +616,25 @@
       "title": "Payload Assets Sha256",
       "type": "object"
     },
+    "primary_objective": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Primary Objective"
+    },
     "research_question": {
       "default": "",
       "title": "Research Question",
       "type": "string"
     },
     "schema_version": {
-      "default": "2.0",
+      "default": "3.0",
       "title": "Schema Version",
       "type": "string"
     },
@@ -578,6 +661,30 @@
       ],
       "default": null,
       "title": "Tasks File"
+    },
+    "taxonomy_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Taxonomy Version"
+    },
+    "threat_model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Threat Model Id"
     },
     "variant_set_file": {
       "anyOf": [

@@ -54,13 +54,17 @@ class RunObservation:
     target_ref: str | None = None
     method_id: str | None = None
     carrier: str | None = None
-    goal: str | None = None
+    objective: str | None = None
     payload_paths: tuple[str, ...] = ()
     target_ids: tuple[str, ...] = ()
     target_files: tuple[str, ...] = ()
     counterevidence_files: tuple[str, ...] = ()
     run_dir: Path | None = None
     artifacts: dict[str, Path] = field(default_factory=dict)
+
+    @property
+    def goal(self) -> str | None:
+        return self.objective
 
 
 class ExposureRow(BaseModel):
@@ -540,7 +544,12 @@ def _assessment_for(
                         "repetition of a claim is not evidence that the claim was believed",
                     ],
                 )
-        if exposed and detected and not missed and observation.goal == "severity_shift":
+        if (
+            exposed
+            and detected
+            and not missed
+            and observation.objective in {"O-SEV-D", "O-SEV-I"}
+        ):
             limitations.append(
                 "severity change is recorded from the score, not from a mechanism claim"
             )

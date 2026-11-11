@@ -18,6 +18,40 @@
       "default": null,
       "title": "Adapter Version"
     },
+    "compatibility_status": {
+      "default": "unknown",
+      "enum": [
+        "validated_fixture",
+        "unvalidated",
+        "unknown"
+      ],
+      "title": "Compatibility Status",
+      "type": "string"
+    },
+    "framework": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Framework"
+    },
+    "framework_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Framework Version"
+    },
     "invalid_lines": {
       "default": 0,
       "title": "Invalid Lines",

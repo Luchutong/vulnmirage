@@ -1,6 +1,9 @@
 # VulnMirage 自适应注入攻击 Benchmark 架构设计
 
-> 状态：已审核并实施（T0–T2 已落地；T3/T4 仅保留 planned 桩并 fail closed）  
+> 状态：历史生成器架构（T0–T2 已落地；T3/T4 仅保留 planned 桩并 fail closed）
+> 分类说明：本文中的 A1/A2 与 `method/tier` 示例不再是规范攻击分类；当前唯一规范见
+> `docs/payload_attack_taxonomy.md` 和 schema 3 `PayloadGen/registry.yaml`。T0–T4 现在只表示
+> 生成器可用上下文与反馈，不表示攻击方法或攻击强度。
 > 实施记录：`docs/benchmark_revision_2026-11-03_status.md`（2026-11-05 段）、`docs/tier_capability_matrix.md`  
 > 日期：2026-11-04  
 > 范围：攻击生成、隔离审计、轨迹记录、独立评测和机制分析  
@@ -195,7 +198,7 @@ repetition + run-order seed
 ```text
 PayloadGen/
 ├── README.md
-├── registry.v2.yaml
+├── registry.yaml              # schema 3 canonical method/realization registry
 ├── methods/
 │   ├── A1/
 │   │   ├── method.yaml
@@ -215,7 +218,7 @@ PayloadGen/
 │   ├── authority_claims.yaml
 │   └── severity_claims.yaml
 └── variant_sets/
-    ├── core_tier_ablation.yaml
+    ├── generator_context_ablation.yaml
     ├── false_negative.yaml
     ├── false_positive.yaml
     └── severity.yaml
@@ -559,7 +562,7 @@ conditions:
 
 推荐集合：
 
-- `core_tier_ablation.yaml`：少量代表策略 × T0/T1/T2，用于主实验；
+- `generator_context_ablation.yaml`：固定攻击分类身份，仅改变 T0/T1/T2 生成上下文；
 - `false_negative.yaml`：A1/A2/A3；
 - `false_positive.yaml`：F1/F2，必须带 safe-decoy certificate；
 - `severity.yaml`：S1/S2；
@@ -614,7 +617,7 @@ workspace/campaigns/<experiment_id>/
 python -m vulnmirage campaign plan `
   --config configs\experiment.yaml `
   --tasks data\task.jsonl `
-  --variant-set PayloadGen\variant_sets\core_tier_ablation.yaml
+  --variant-set PayloadGen\variant_sets\generator_context_ablation.yaml
 
 # 2. 仅生成并验证攻击变体，便于人工审查
 python -m vulnmirage campaign generate `
@@ -644,7 +647,7 @@ python -m vulnmirage campaign analyze `
 | `campaign/variants.py` | 从模板专用编辑器变为消费已验证 `CandidatePayload`；支持 AST anchor 和 target remap。 |
 | `campaign/pipeline.py` | 增加 index/generate/validate/freeze 阶段，并把生成工作区与 audit exposed 区完全分离。 |
 | `isolation/` | 增加实际 runtime/container backend 与 inference-only gateway attestation。 |
-| `trace/` | 保持框架无关事件契约；补真实 OpenCode fixture、版本漂移和 context/file exposure 证据。 |
+| `trace/` | 保持框架无关事件契约；OpenCode 1.17.18 与原生 Linux 2.2.7 真实 CLI fixture、工具 schema 漂移及版本状态已完成，后续补模型后端 live-run 的 context/file exposure 覆盖率。 |
 | `verifier/` | 消费 variant-specific remapped targets 和 safe-decoy certificates；继续独立进程、无执行 sink。 |
 | `mechanism/` | 把 payload exposure、主张采纳、结果改变和替代解释串成可审计证据链。 |
 | `evaluation/` | 增加按 task/target 配对、repository 聚类、tier ablation 和 cost curve 聚合。 |

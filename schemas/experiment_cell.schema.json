@@ -16,10 +16,88 @@
       "title": "Dataset Version",
       "type": "string"
     },
+    "dose": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dose"
+    },
+    "generator_tier": {
+      "default": "T0",
+      "enum": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "title": "Generator Tier",
+      "type": "string"
+    },
+    "intensity": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intensity"
+    },
+    "method_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Method Id"
+    },
+    "objective": {
+      "default": "none",
+      "title": "Objective",
+      "type": "string"
+    },
+    "primary_mechanism": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Primary Mechanism"
+    },
     "prompt_version": {
       "default": "unknown",
       "title": "Prompt Version",
       "type": "string"
+    },
+    "realization_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Realization Id"
     },
     "repetition": {
       "default": 1,
@@ -35,6 +113,21 @@
       "default": "unknown",
       "title": "Scaffold Version",
       "type": "string"
+    },
+    "surface": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Surface"
     },
     "target_id": {
       "anyOf": [
@@ -52,17 +145,29 @@
       "title": "Task Id",
       "type": "string"
     },
-    "tier": {
-      "default": "T0",
-      "enum": [
-        "T0",
-        "T1",
-        "T2",
-        "T3",
-        "T4"
+    "taxonomy_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
       ],
-      "title": "Tier",
-      "type": "string"
+      "default": null,
+      "title": "Taxonomy Version"
+    },
+    "threat_model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Threat Model Id"
     },
     "victim_model": {
       "anyOf": [
