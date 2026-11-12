@@ -83,6 +83,10 @@ conversation/file snapshots, detects registered payload fragments in tool return
 and creates official SDK session forks. A local API stub verifies the hook and resume
 boundaries without paid model calls; campaign scoring is not yet connected.
 
+The [Claude Code trace chain](docs/claude_trace_zh.md) adds native hook/stream/session
+capture, compatible normalized artifacts, payload-return evidence, and descriptive
+behavior comparisons from these checkpoints.
+
 ## 📰 News
 
 - **2026-11-04** — Added research-question-specific variant sets, plan-time set freezing,

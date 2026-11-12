@@ -81,6 +81,9 @@ flowchart LR
 检测工具返回中的登记片段，再通过官方 SDK 创建会话分支。本地 API 测试服务可验证
 hooks 与恢复边界，无需真实模型调用；该原型尚未接入 campaign 评分。
 
+[Claude Code trace 链](docs/claude_trace_zh.md)进一步连接 hooks、流式输出和会话归档，
+生成兼容的标准化轨迹、payload 返回证据以及检查点分支的描述性行为差异。
+
 ## 📰 最新进展
 
 - **2026-11-12**：增加 WSL/Linux 原生 OpenCode 2.x 配置、rootless network
