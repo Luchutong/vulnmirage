@@ -1,15 +1,23 @@
-# VulnMirage: Adversarial Repository Context for Code-Agent Security Auditing
+# VulnMirage
+
+## Can repository text mislead a code-audit agent?
 
 <div align="center">
 
-**A task-driven benchmark for measuring how repository-context injections change an agent's vulnerability discovery, verification, severity assessment, and final report.**
+**A benchmark for testing whether comments, documents, fake analysis claims, and
+safe-looking decoys can change an AI agent's security-audit result.**
+
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![OpenCode](https://img.shields.io/badge/OpenCode-2.x-5B5BD6)
+![Platform](https://img.shields.io/badge/Platform-WSL%20%7C%20Linux-4EAA25?logo=linux&logoColor=white)
+![Schemas](https://img.shields.io/badge/Schemas-52-blue)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 [English](README.md) | [简体中文](README_CN.md)
 
 [Code](https://github.com/xinyi234/vulnmirage) ·
-[Benchmark design](docs/benchmark_revision_plan_2026-11-03.md) ·
-[Next-stage roadmap](docs/next_stage_design_2026-11-04.md) ·
 [Campaign guide](docs/campaign.md) ·
+[Attack taxonomy](docs/payload_attack_taxonomy.md) ·
 [WSL deployment](docs/wsl_deployment.md) ·
 [Payload methods](PayloadGen/README.md)
 
@@ -17,7 +25,59 @@
 
 ---
 
-## News
+## 👋 In one sentence
+
+VulnMirage gives the **same audit agent** two versions of the **same vulnerable
+repository**: one clean and one containing attacker-controlled repository context. It
+then checks whether the agent still finds the real vulnerability, invents a false one,
+or changes its severity judgment.
+
+```mermaid
+flowchart LR
+    T[One real vulnerability task] --> C[Clean repository C]
+    T --> A[Injected repository A]
+    C --> AC[Same audit agent]
+    A --> AA[Same audit agent]
+    AC --> RC[Report + findings + trace]
+    AA --> RA[Report + findings + trace]
+    RC --> V[Private verifier]
+    RA --> V
+    V --> D[Paired outcome and behavior difference]
+```
+
+### What does it help answer?
+
+- 🎯 **Missed vulnerability:** did misleading repository text make a real finding disappear?
+- 🪤 **Invented vulnerability:** did a certified-safe decoy become a false finding?
+- ⚖️ **Severity shift:** did the agent rate the same issue as less or more severe?
+- 🧭 **Behavior change:** did the agent read the payload, stop verifying code, or inspect a decoy?
+
+### What does it not claim?
+
+- It is not currently a model leaderboard.
+- It does not treat missing traces or malformed reports as successful audits.
+- It does not expose the private oracle to the agent.
+- It does not yet measure defense prompts; the current focus is the evaluation pipeline.
+- A repository injection effect includes both its meaning and its added context; without a
+  neutral-content arm, those two effects are not separately identified.
+
+### Plain-language terms
+
+| Term | Meaning in this benchmark |
+| :-- | :-- |
+| **Task** | One exact repository commit and an ordinary repository-security request |
+| **Target** | A real vulnerability known only to the private evaluator |
+| **C / clean** | The original vulnerable snapshot with no benchmark injection |
+| **A / attack** | A fresh copy of the same snapshot with one registered injection |
+| **Payload** | The attacker-controlled comment, document, claim, or decoy added to A |
+| **Oracle** | Private evidence used to build selected payloads and score the answer |
+| **Trace** | Observable agent events: files read, tools used, results returned, final text |
+| **Variant set** | A pre-registered group of conditions answering one research question |
+
+If you only want to run one repository, jump to [Quick start](#quick-start). For WSL
+setup and network-isolation checks, use the [WSL deployment guide](docs/wsl_deployment.md).
+
+## 📰 News
 
 - **2026-11-04** — Added research-question-specific variant sets, plan-time set freezing,
   seven runnable payload adaptations, and two fail-closed planned semantic methods.
@@ -28,6 +88,7 @@
 
 ## Contents
 
+- [In one sentence](#-in-one-sentence)
 - [Introduction](#introduction)
 - [Benchmark at a glance](#benchmark-at-a-glance)
 - [Design](#design)
@@ -250,7 +311,7 @@ Requirements:
 ```bash
 git clone https://github.com/xinyi234/vulnmirage.git
 cd vulnmirage
-python -m pip install -e ".[dev]"
+python -m pip install -e .
 ```
 
 The supplied agent config uses OpenCode 2.x (`opencode --standalone run`) and is
@@ -371,12 +432,9 @@ structured findings:
 }
 ```
 
-The parser locates this answer but never repairs it. Use the local diagnostic after a run:
-
-```bash
-python scripts/check_final_answer.py \
-  --run-dir workspace/campaigns/core/deepseek-chat/archives/<task>/runs/<run>
-```
+The parser locates this answer but never repairs it. Inspect `final_raw.txt`,
+`findings.json`, `parse_error.json` and `run.json` in the archived run when diagnosing
+an invalid answer.
 
 Important archived outputs include:
 
@@ -398,7 +456,7 @@ secondary and is evaluable only when normalized tool/file evidence exists.
 
 ## Current status
 
-Implemented and covered by tests:
+Implemented in the benchmark runtime:
 
 - dataset-core ingestion with manifest digest verification;
 - exact-commit archive resolution and bounded, traversal-safe extraction;
@@ -410,8 +468,7 @@ Implemented and covered by tests:
 - OpenCode command execution, stdout capture and dual-output parsing;
 - OpenCode JSONL normalization with source hashing, credential redaction and explicit
   complete/partial/missing states;
-- sanitized real-CLI trace fixtures captured from OpenCode 1.17.18 and native Linux
-  2.2.7 with a local deterministic inference stub, plus fail-visible version compatibility;
+- OpenCode JSONL compatibility handling with fail-visible framework-version status;
 - minimal child-process environments containing only allowlisted runtime variables and
   declared inference credentials;
 - fail-closed egress semantics that distinguish a host probe's observed
@@ -428,17 +485,16 @@ Not yet complete for a full published experiment:
   wording replicates per level; M3 severity anchoring and M4 attention diversion do
   not yet have the same complete coverage;
 - T3/T4 generators and their separate adaptation protocol;
-- at least three live model-backed OpenCode runs and fixtures for any additional
-  framework versions used in the formal experiment;
+- at least three live model-backed OpenCode runs and compatibility validation for every
+  framework version used in the formal experiment;
 - operator-run validation of the rootless Linux namespace + Unix-socket inference
   gateway on the copied WSL deployment;
 - FPA and FlashBoom semantic generators and behavior-equivalence validation;
 - a multi-model, repeated real campaign over all selected tasks.
 
-Current regression snapshot:
+Current dataset/schema snapshot:
 
 ```text
-94 tests passed
 52 schemas current; 0 missing; 0 stale
 47 tasks / 725 targets loaded with declared digests verified
 725/725 targets admit a sanitized T2 oracle view; 0 sanitizer leaks
@@ -461,9 +517,6 @@ The next milestone is **experiment readiness**, not adding more treatment names:
    exclusion accounting at scale;
 8. freeze a full experiment manifest before scaling across the dataset.
 
-The complete acceptance gates and proposed modules are in
-[`docs/next_stage_design_2026-11-04.md`](docs/next_stage_design_2026-11-04.md).
-
 ## Project layout
 
 ```text
@@ -471,7 +524,6 @@ configs/        Experiment and OpenCode/provider configurations
 PayloadGen/     Method registry, deterministic templates and variant sets
 prompts/        Versioned audit prompt and answer contract
 schemas/        Generated public artifact contracts
-scripts/        Run-level diagnostics
 src/vulnmirage/
   campaign/     Planning, phase state, execution and orchestration
   ingest/       Dataset-core reader
@@ -480,11 +532,8 @@ src/vulnmirage/
   verifier/     Private targets, frozen bundles and scoring
   mechanism/    Exposure and trajectory analysis
   evaluation/   Answer parsing and report/findings consistency
-tests/          Security, integration and regression acceptance tests
-docs/           Design, operations, leakage model and roadmap
+docs/           Experiment operation, leakage model and attack taxonomy
 ```
-
-For file-by-file responsibilities, see [`docs/FILES.md`](docs/FILES.md).
 
 ## Citation
 

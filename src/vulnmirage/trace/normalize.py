@@ -58,7 +58,7 @@ def normalize_trace(
         elif framework_version:
             compatibility_status = "unvalidated"
             limitations.append(
-                "OpenCode framework version has no checked-in real CLI trace fixture: "
+                "OpenCode framework version is not registered as validated in this runtime build: "
                 f"{framework_version}"
             )
 

@@ -91,7 +91,7 @@ python3 -c 'import sys; assert sys.version_info >= (3, 11), sys.version'
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e '.[dev]'
+python -m pip install -e .
 ```
 
 每次打开新的 WSL shell 后先执行：
@@ -124,16 +124,10 @@ opencode --version
 - 路径位于 Linux 文件系统，例如 `~/.opencode/bin/opencode`；
 - `file` 输出包含 `ELF 64-bit`；
 - 不能解析到 `/mnt/.../opencode`、`.cmd` 或 Windows `.exe`；
-- 当前冻结的 Linux trace fixture 对应 OpenCode `2.2.7`。
+- 正式实验应冻结并记录 OpenCode 的准确版本。
 
-若版本不是 2.2.7，程序仍可运行，但 trace 会标记为 `unvalidated/partial`。
-可以在不调用外部模型的情况下生成新版本 fixture：
-
-```bash
-python scripts/capture_opencode_trace_fixture.py
-```
-
-新 fixture 必须经过代码审查和回归测试后，才能加入正式实验的已验证版本表。
+未验证版本仍可运行，但 trace 会明确标记为 `unvalidated/partial`，不能用于正式的
+机制结论。
 
 ## 5. 检查 rootless namespace
 
@@ -196,8 +190,6 @@ python -m vulnmirage doctor \
 
 python -m vulnmirage ingest dataset-core \
   --root ../VulnMirage_dataset
-
-python -m pytest tests -q
 
 python -m vulnmirage schemas
 ```

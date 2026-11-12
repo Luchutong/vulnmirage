@@ -10,7 +10,10 @@ from ..hashing import utc_now_iso
 
 TRACE_SCHEMA_VERSION = "1.0"
 OPENCODE_ADAPTER_VERSION = "opencode-jsonl-v2"
-OPENCODE_VALIDATED_VERSIONS = ("1.17.18", "2.2.7")
+# Validation evidence is release-specific and is intentionally not bundled with the
+# runtime-only benchmark distribution. Formal experiments must register their audited
+# framework version before treating a trace as mechanism-grade evidence.
+OPENCODE_VALIDATED_VERSIONS: tuple[str, ...] = ()
 
 
 class _Strict(BaseModel):

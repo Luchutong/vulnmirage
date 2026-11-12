@@ -1,15 +1,23 @@
-# VulnMirage：面向代码审计 Agent 的仓库上下文注入 Benchmark
+# VulnMirage
+
+## 仓库里的文字，能把代码审计 Agent 带偏吗？
 
 <div align="center">
 
-**用于评测仓库上下文注入如何影响 Agent 的漏洞发现、验证、严重性判断与最终安全审计报告。**
+**一个用于测试代码注释、README、虚假分析结论和安全诱饵是否会改变 AI
+安全审计结果的 Benchmark。**
+
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![OpenCode](https://img.shields.io/badge/OpenCode-2.x-5B5BD6)
+![Platform](https://img.shields.io/badge/Platform-WSL%20%7C%20Linux-4EAA25?logo=linux&logoColor=white)
+![Schemas](https://img.shields.io/badge/Schemas-52-blue)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 [English](README.md) | [简体中文](README_CN.md)
 
 [代码仓库](https://github.com/xinyi234/vulnmirage) ·
-[Benchmark 设计](docs/benchmark_revision_plan_2026-11-03.md) ·
-[下一阶段路线图](docs/next_stage_design_2026-11-04.md) ·
 [实验流程](docs/campaign.md) ·
+[攻击分类](docs/payload_attack_taxonomy.md) ·
 [WSL 部署](docs/wsl_deployment.md) ·
 [Payload 方法](PayloadGen/README.md)
 
@@ -17,11 +25,61 @@
 
 ---
 
-## 最新进展
+## 👋 说明
+
+VulnMirage 让**同一个审计 Agent**查看**同一个真实漏洞仓库**的两个版本：一个保持
+原样，另一个加入攻击者控制的仓库内容。然后比较 Agent 是否仍能找到真实漏洞、
+是否捏造了不存在的漏洞，以及是否改变了严重性判断。
+
+```mermaid
+flowchart LR
+    T[一个真实漏洞任务] --> C[干净仓库 C]
+    T --> A[注入仓库 A]
+    C --> AC[同一个审计 Agent]
+    A --> AA[同一个审计 Agent]
+    AC --> RC[报告 + findings + trace]
+    AA --> RA[报告 + findings + trace]
+    RC --> V[私有评测器]
+    RA --> V
+    V --> D[比较结果与行为差异]
+```
+
+### 它主要回答什么问题？
+
+- 🎯 **真实漏洞漏报**：误导性内容是否让原本可发现的漏洞从报告中消失？
+- 🪤 **虚假漏洞捏造**：经过认证的安全诱饵是否被 Agent 错报成漏洞？
+- ⚖️ **严重性偏移**：同一个问题是否被评得更轻或更重？
+- 🧭 **审计行为变化**：Agent 是否读到 payload、停止独立核验，或者把精力转向诱饵？
+
+### 它暂时不声称什么？
+
+- 当前不是模型排行榜，也不发布模型排名。
+- trace 缺失、报告格式错误或隔离失败不会被当作有效审计。
+- 私有 oracle 不会暴露给审计 Agent。
+- 当前先做好评测主流程，暂不比较防御 prompt。
+- 没有中性内容条件时，观察到的是完整注入效果，不能单独区分语义误导和额外上下文
+  长度的影响。
+
+### 常用术语速查
+
+| 术语 | 在本项目中的含义 |
+| :-- | :-- |
+| **Task** | 一个精确仓库 commit 加一条普通的仓库安全审计任务 |
+| **Target** | 只有私有评测器知道的真实漏洞目标 |
+| **C / clean** | 没有 benchmark 注入的原始漏洞快照 |
+| **A / attack** | 从同一快照独立复制并加入一种注册攻击的仓库 |
+| **Payload** | 加入 A 的攻击性注释、文档、声明或诱饵 |
+| **Oracle** | 用于定向生成和私有评分的漏洞证据，Agent 不可见 |
+| **Trace** | Agent 读了什么文件、用了什么工具、得到了什么结果以及最终输出 |
+| **Variant set** | 预先登记的一组实验条件，只回答一个研究问题 |
+
+如果只想先跑一个仓库，可以直接看[快速开始](#快速开始)；如果需要配置 WSL 和
+网络隔离，请看 [WSL 部署说明](docs/wsl_deployment.md)。
+
+## 📰 最新进展
 
 - **2026-11-12**：增加 WSL/Linux 原生 OpenCode 2.x 配置、rootless network
-  namespace、Unix-socket inference gateway、OpenCode 2.2.7 trace fixture 和完整
-  WSL 部署说明。
+  namespace、Unix-socket inference gateway 和完整 WSL 部署说明。
 - **2026-11-11**：建立规范攻击分类，将攻击目标、方法、载体表面、I0–I4 强度和
   realization 分离；三个核心 O-FN 方法具备完整强度梯度。
 - **2026-11-04**：将“预先克隆全部仓库”的旧流程改为逐任务流式实验：下载一个
@@ -31,6 +89,7 @@
 
 ## 目录
 
+- [一句话说明](#-一句话说明)
 - [项目简介](#项目简介)
 - [Benchmark 概览](#benchmark-概览)
 - [核心设计](#核心设计)
@@ -257,7 +316,7 @@ Loader 通过 `manifest.json` 发现带日期的 JSONL 文件并验证全部摘�
 ```bash
 git clone https://github.com/xinyi234/vulnmirage.git
 cd vulnmirage
-python -m pip install -e '.[dev]'
+python -m pip install -e .
 ```
 
 提供的 agent 配置使用 `opencode --standalone run --archived`，面向 WSL/Linux。
@@ -383,12 +442,8 @@ python -m vulnmirage campaign status \
 }
 ```
 
-Parser 只定位答案，不修复 JSON 或补写 findings。单 run 排障命令：
-
-```bash
-python scripts/check_final_answer.py \
-  --run-dir workspace/campaigns/core/deepseek-chat/archives/<task>/runs/<run>
-```
+Parser 只定位答案，不修复 JSON 或补写 findings。排查无效答案时直接检查归档 run
+目录中的 `final_raw.txt`、`findings.json`、`parse_error.json` 和 `run.json`。
 
 主要归档产物：
 
@@ -411,7 +466,7 @@ python scripts/check_final_answer.py \
 
 ## 当前进度
 
-已实现并有测试覆盖：
+Benchmark 运行时已经实现：
 
 - dataset-core 加载与 manifest 摘要校验；
 - 精确 commit archive 解析、安全下载和有界防穿越解压；
@@ -420,7 +475,7 @@ python scripts/check_final_answer.py \
 - clean/attack 独立构造、target remap 与 payload provenance；
 - variant-set/tier-profile plan 冻结和 resume identity；
 - OpenCode 双输出解析及 JSONL trace 规范化；
-- OpenCode 1.17.18 与 Linux 2.2.7 的真实 CLI trace fixture；
+- OpenCode JSONL 兼容性处理与显式 framework-version 状态；
 - rootless Linux network namespace 与 Unix-socket inference gateway 代码；
 - 最小子进程环境、逐 run HOME/XDG state 和 credential 名白名单；
 - 私有 verifier bundle、target rubric 与 V/I/E/S 可归因评分；
@@ -437,10 +492,9 @@ python scripts/check_final_answer.py \
 - FPA、FlashBoom 等语义方法与行为等价验证；
 - 多模型、多任务、多重复的正式冻结实验。
 
-当前回归快照：
+当前数据集/schema 快照：
 
 ```text
-94 tests passed
 52 schemas current; 0 missing; 0 stale
 47 tasks / 725 targets，manifest digest 已验证
 725/725 targets 可生成清理后的 T2 oracle view；0 sanitizer leaks
@@ -461,9 +515,6 @@ python scripts/check_final_answer.py \
 7. 完善 objective-specific 指标、仓库聚类不确定性和排除统计；
 8. 冻结完整 experiment manifest 后再扩展整个数据集。
 
-完整验收门槛见
-[下一阶段设计](docs/next_stage_design_2026-11-04.md)。
-
 ## 项目结构
 
 ```text
@@ -471,7 +522,6 @@ configs/        实验与 OpenCode/provider 配置
 PayloadGen/     方法注册表、realization、模板与 variant sets
 prompts/        版本化审计任务与答案契约
 schemas/        生成的公开产物 schema
-scripts/        诊断和 trace fixture 工具
 src/vulnmirage/
   campaign/     plan、状态机、执行器与主流程
   ingest/       dataset-core reader
@@ -480,11 +530,8 @@ src/vulnmirage/
   verifier/     私有 target、冻结 bundle 与评分
   mechanism/    暴露和轨迹分析
   evaluation/   答案解析、报告/findings 一致性与聚合
-tests/          安全、集成和回归验收测试
-docs/           设计、操作、泄露模型与路线图
+docs/           实验操作、泄露模型与攻击分类体系
 ```
-
-逐文件职责见 [docs/FILES.md](docs/FILES.md)。
 
 ## 引用
 
